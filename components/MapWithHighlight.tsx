@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { act, useEffect, useState } from 'react'
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
 import type { Feature, GeoJSON as GeoJSONType, Geometry } from 'geojson'
 import type { PathOptions } from 'leaflet'
@@ -16,20 +16,29 @@ const enum Column {
 
 export default function MapWithHighlight() {
 const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
-  const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Set())
-  const [isClient, setIsClient] = useState(false)
+const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Set())
+const [isClient, setIsClient] = useState(false)
+const [activeMetric, setActiveMetric] = useState<null | Column>(null)
 const [democracyIndex, setDemocracyIndex] = useState<number | null>(null)
 const [costOfLiving, setCostOfLiving] = useState<number | null>(null)
 const [hdi, setHDI] = useState<number | null>(null)
 const [crime, setCrime] = useState<number | null>(null)
 const [corruption, setCorruption] = useState<number | null>(null)
 
-  const [showPotableWater, setShowPotableWater] = useState(false)
+const [showPotableWater, setShowPotableWater] = useState(false)
 const [showDemocracyIndex, setShowDemocracyIndex] = useState(false)
 const [showCostOfLiving, setShowCostOfLiving] = useState(false)
 const [showHDI, setShowHDI] = useState(false)
 const [showCrime, setShowCrime] = useState(false)
 const [showCorruption, setShowCorruption] = useState(false)
+
+const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
+const [showCostOfLivingGradient, setShowCostOfLivingGradient] = useState(false)
+const [showHDIGradient, setShowHDIGradient] = useState(false)
+
+const reversedGradientColumns = new Set<Column>([
+  Column.HDI, // Use your actual column enum or index
+])
 
   useEffect(() => {
     setIsClient(true)
@@ -49,6 +58,90 @@ const [showCorruption, setShowCorruption] = useState(false)
       weight: 2,
       color: isHighlighted ? 'darkgreen' : 'black',
       fillOpacity: isHighlighted ? 0.7 : 0,
+    }
+  }
+
+  const getColorForValue = (value: number, min: number, max: number, reverse: boolean) => {
+  let ratio = (value - min) / (max - min)
+
+  if (reverse) {
+    ratio = 1 - ratio
+  }
+
+  // ratio goes from 0 (low) to 1 (high)
+  let r = 0, g = 0, b = 0
+
+  if (ratio < 0.33) {
+    // green to yellow
+    r = Math.round(255 * (ratio / 0.33))
+    g = 255
+  } else if (ratio < 0.66) {
+    // yellow to orange
+    r = 255
+    g = Math.round(255 * (1 - (ratio - 0.33) / 0.33))
+  } else {
+    // orange to red
+    r = 255
+    g = 0
+  }
+
+  return `rgb(${r},${g},${b})`
+}
+
+const getStyle = (feature: any): PathOptions => {
+  const name = feature.properties.ADMIN || feature.properties.name
+  const isHighlighted = highlightCountries.has(name)
+  const value = countryValues.get(name)
+
+  let fillColor = isHighlighted ? 'green' : '#ccc'
+
+  if (countryValues.size > 0 && value !== undefined) {
+    const values = Array.from(countryValues.values())
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const reverse = reversedGradientColumns.has(activeMetric!!)
+
+    fillColor = getColorForValue(value, min, max, reverse)
+  }
+
+  return {
+    fillColor,
+    weight: 1,
+    fillOpacity: 0.7,
+    color: 'black',
+  }
+}
+
+  useEffect(() => {
+  if (activeMetric === Column.CostOfLiving) {
+    fetchGradientData(Column.CostOfLiving)
+  }
+  if (activeMetric === Column.HDI) {
+  fetchGradientData(Column.HDI, true)
+  } else {
+    setCountryValues(new Map())
+    return
+  }
+}, [activeMetric])
+
+const fetchGradientData = async (column: number, reverse: boolean = false) => {
+    try {
+      const res = await fetch('/data/values.csv')
+      const csvText = await res.text()
+      const results = Papa.parse<any[]>(csvText, { header: false })
+      const valueMap = new Map<string, number>()
+
+      results.data.forEach(row => {
+        const name = row[0]
+        const val = parseFloat(row[column])
+        if (name && !isNaN(val)) {
+          valueMap.set(name.toString(), val)
+        }
+      })
+
+      setCountryValues(valueMap)
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -144,6 +237,24 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
           color: 'black'
         }}
       >
+        <label>
+  <input
+    type="checkbox"
+    checked={activeMetric === Column.CostOfLiving}
+     onChange={(e) => setActiveMetric(e.target.checked ? Column.CostOfLiving : null)}
+  />
+  {' '}Show Cost of Living Gradient
+</label>
+<br />
+<label>
+  <input
+    type="checkbox"
+    checked={activeMetric === Column.HDI}
+     onChange={(e) => setActiveMetric(e.target.checked ? Column.HDI : null)}
+  />
+  {' '}Show HDI Gradient
+</label>
+<br />
         FILTERS
         <br />
   <label>
@@ -228,7 +339,7 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {geoData && <GeoJSON data={geoData} style={geoStyle} />}
+        {geoData && <GeoJSON data={geoData} style={getStyle} />}
       </MapContainer>
     </div>
   )
