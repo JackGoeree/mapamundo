@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
 import type { Feature, GeoJSON as GeoJSONType, Geometry } from 'geojson'
 import type { PathOptions } from 'leaflet'
 import Papa from 'papaparse'
+import MonthSlider from './MonthSlider'
 
 const enum Column {
   PotableWater = 1,
@@ -11,7 +12,24 @@ const enum Column {
   CostOfLiving = 4,
   HDI = 5,
   Crime = 6,
-  Corruption = 7
+  Corruption = 7,
+  JanFeels = 26,
+  FebFeels = 27,
+  MarFeels = 28,
+  AprFeels = 29,
+  MayFeels = 30,
+  JunFeels = 31,
+  JulFeels = 32,
+  AugFeels = 33,
+  SepFeels = 34,
+  OctFeels = 35,
+  NovFeels = 36,
+  DecFeels = 37
+}
+
+const enum CsvFile {
+  CountryValues = "/data/countries_values.csv",
+  CountryWeather = "/data/countries_weather.csv"
 }
 
 export default function MapWithHighlight() {
@@ -33,12 +51,34 @@ const [showCrime, setShowCrime] = useState(false)
 const [showCorruption, setShowCorruption] = useState(false)
 
 const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
-const [showCostOfLivingGradient, setShowCostOfLivingGradient] = useState(false)
-const [showHDIGradient, setShowHDIGradient] = useState(false)
+
+const [monthIndex, setMonthIndex] = useState(0);
+
+
+
 
 const reversedGradientColumns = new Set<Column>([
-  Column.HDI, // Use your actual column enum or index
+  Column.HDI,
+  Column.Corruption
 ])
+
+const monthColumns: Column[] = [
+  Column.JanFeels,
+  Column.FebFeels,
+  Column.MarFeels,
+  Column.AprFeels,
+  Column.MayFeels,
+  Column.JunFeels,
+  Column.JulFeels,
+  Column.AugFeels,
+  Column.SepFeels,
+  Column.OctFeels,
+  Column.NovFeels,
+  Column.DecFeels
+]
+
+const activeMonth = monthColumns[monthIndex];
+
 
   useEffect(() => {
     setIsClient(true)
@@ -50,18 +90,7 @@ const reversedGradientColumns = new Set<Column>([
       .catch(console.error)
   }, [])
 
-  const geoStyle = (feature): PathOptions => {
-    const countryName = feature.properties?.name || ''
-    const isHighlighted = highlightCountries.has(countryName)
-    return {
-      fillColor: isHighlighted ? 'green' : 'transparent',
-      weight: 2,
-      color: isHighlighted ? 'darkgreen' : 'black',
-      fillOpacity: isHighlighted ? 0.7 : 0,
-    }
-  }
-
-  const getColorForValue = (value: number, min: number, max: number, reverse: boolean) => {
+  const getColorForValue = (value: number, min: number, max: number, reverse: boolean, isWeather: boolean) => {
   let ratio = (value - min) / (max - min)
 
   if (reverse) {
@@ -85,6 +114,36 @@ const reversedGradientColumns = new Set<Column>([
     g = 0
   }
 
+  if (isWeather) {
+    
+    min = 0
+    max = 50  
+    ratio = (value - min) / (max - min)
+
+    if (ratio < 0.5) {
+      // blue to green
+      let t = ratio / 0.5; // 0 to 1
+      r = 0;
+      g = Math.round(255 * t);
+      b = Math.round(255 * (1 - t));
+    } else {
+      // green to yellow to red
+      if (ratio < 0.75) {
+        // green to yellow
+        let t = (ratio - 0.5) / 0.25; // 0 to 1
+        r = Math.round(255 * t);
+        g = 255;
+        b = 0;
+      } else {
+        // yellow to red
+        let t = (ratio - 0.75) / 0.25; // 0 to 1
+        r = 255;
+        g = Math.round(255 * (1 - t));
+        b = 0;
+      }
+    }
+  }
+
   return `rgb(${r},${g},${b})`
 }
 
@@ -100,8 +159,9 @@ const getStyle = (feature: any): PathOptions => {
     const min = Math.min(...values)
     const max = Math.max(...values)
     const reverse = reversedGradientColumns.has(activeMetric!!)
+    const isWeather = !activeMetric && monthColumns.includes(activeMonth!!)
 
-    fillColor = getColorForValue(value, min, max, reverse)
+    fillColor = getColorForValue(value, min, max, reverse, isWeather)
   }
 
   return {
@@ -113,20 +173,25 @@ const getStyle = (feature: any): PathOptions => {
 }
 
   useEffect(() => {
-  if (activeMetric === Column.CostOfLiving) {
-    fetchGradientData(Column.CostOfLiving)
-  }
-  if (activeMetric === Column.HDI) {
-  fetchGradientData(Column.HDI, true)
-  } else {
+  if (!activeMetric) {
     setCountryValues(new Map())
     return
   }
+  fetchGradientData(activeMetric, CsvFile.CountryValues)
 }, [activeMetric])
 
-const fetchGradientData = async (column: number, reverse: boolean = false) => {
+useEffect(() => {
+  if (!activeMonth) {
+    setCountryValues(new Map())
+    return
+  }
+  fetchGradientData(activeMonth, CsvFile.CountryWeather)
+}, [activeMonth])
+
+const fetchGradientData = async (column: number, source: CsvFile) => {
+  console.log("Fetch gradient data for column " + column);
     try {
-      const res = await fetch('/data/values.csv')
+      const res = await fetch(source)
       const csvText = await res.text()
       const results = Papa.parse<any[]>(csvText, { header: false })
       const valueMap = new Map<string, number>()
@@ -194,7 +259,7 @@ useEffect(() => {
 
 async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]): Promise<Set<string>> {
   try {
-    const res = await fetch('/data/values.csv')
+    const res = await fetch(CsvFile.CountryValues)
     const csvText = await res.text()
     const results = Papa.parse<any[]>(csvText, { header: false })
 
@@ -237,13 +302,19 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
           color: 'black'
         }}
       >
+        WEATHER
+        <br />
+        <MonthSlider monthIndex={monthIndex} setMonthIndex={setMonthIndex} />
+        <br />
+        GRADIENTS
+<br />
         <label>
   <input
     type="checkbox"
     checked={activeMetric === Column.CostOfLiving}
      onChange={(e) => setActiveMetric(e.target.checked ? Column.CostOfLiving : null)}
   />
-  {' '}Show Cost of Living Gradient
+  {' '}Cost of Living
 </label>
 <br />
 <label>
@@ -252,9 +323,27 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
     checked={activeMetric === Column.HDI}
      onChange={(e) => setActiveMetric(e.target.checked ? Column.HDI : null)}
   />
-  {' '}Show HDI Gradient
+  {' '}HDI
 </label>
 <br />
+<label>
+  <input
+    type="checkbox"
+    checked={activeMetric === Column.Crime}
+     onChange={(e) => setActiveMetric(e.target.checked ? Column.Crime : null)}
+  />
+  {' '}Crime
+</label>
+<br />
+<label>
+  <input
+    type="checkbox"
+    checked={activeMetric === Column.Corruption}
+     onChange={(e) => setActiveMetric(e.target.checked ? Column.Corruption : null)}
+  />
+  {' '}Corruption
+</label>
+<br /><br />
         FILTERS
         <br />
   <label>
