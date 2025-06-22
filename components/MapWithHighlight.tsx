@@ -10,18 +10,26 @@ const enum Column {
   Smartraveller = 3,
   CostOfLiving = 4,
   HDI = 5,
-  Corruption = 6
+  Crime = 6,
+  Corruption = 7
 }
 
 export default function MapWithHighlight() {
 const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
   const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Set())
   const [isClient, setIsClient] = useState(false)
+const [democracyIndex, setDemocracyIndex] = useState<number | null>(null)
+const [costOfLiving, setCostOfLiving] = useState<number | null>(null)
+const [hdi, setHDI] = useState<number | null>(null)
+const [crime, setCrime] = useState<number | null>(null)
+const [corruption, setCorruption] = useState<number | null>(null)
+
   const [showPotableWater, setShowPotableWater] = useState(false)
-  const [democracyIndex, setShowDemocracyIndex] = useState<number | ''>('') 
-  const [costOfLiving, setShowCostOfLiving] = useState<number | ''>('')
-  const [hdi, setShowHdi] = useState<number | ''>('') 
-  const [corruption, setShowCorruption] = useState<number | ''>('') 
+const [showDemocracyIndex, setShowDemocracyIndex] = useState(false)
+const [showCostOfLiving, setShowCostOfLiving] = useState(false)
+const [showHDI, setShowHDI] = useState(false)
+const [showCrime, setShowCrime] = useState(false)
+const [showCorruption, setShowCorruption] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
@@ -37,59 +45,83 @@ const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
     const countryName = feature.properties?.name || ''
     const isHighlighted = highlightCountries.has(countryName)
     return {
-      fillColor: isHighlighted ? 'red' : 'transparent',
+      fillColor: isHighlighted ? 'green' : 'transparent',
       weight: 2,
-      color: isHighlighted ? 'darkred' : 'black',
+      color: isHighlighted ? 'darkgreen' : 'black',
       fillOpacity: isHighlighted ? 0.7 : 0,
     }
   }
 
-  function highlightMatchingCountries(filter: number, expression: (val: string) => boolean) {
-    fetch('/data/values.csv')
-        .then(res => res.text())
-        .then(csvText => {
-          const results = Papa.parse(csvText, { header: false })
-          const countriesToHighlight = new Set<string>()
-          results.data.forEach((row: any) => {
-            if (row[filter] && expression(row[filter])) {
-              countriesToHighlight.add(row[0].toString())
-            }
-          })
-          setHighlightCountries(countriesToHighlight)
-        })
-        .catch(console.error)
+useEffect(() => {
+  const filters: ((row: any[]) => boolean)[] = []
+
+  if (showPotableWater) {
+    filters.push(row => row[Column.PotableWater]?.toLowerCase() === 'true')
   }
 
-  // Potable water
-  useEffect(() => {
-    if (showPotableWater) {
-      // Fetch and parse CSV ONLY when checkbox is checked
-      highlightMatchingCountries(Column.PotableWater, val => val.toLowerCase() === 'true')
-    } else {
-      // Clear highlights when unchecked
-      setHighlightCountries(new Set())
-    }
-  }, [showPotableWater])
+  if (showDemocracyIndex && democracyIndex !== null) {
+    filters.push(row => parseFloat(row[Column.DemocracyIndex]) > democracyIndex)
+  }
 
-  // Democracy Index
-  useEffect(() => {
-    highlightMatchingCountries(Column.DemocracyIndex, val => parseFloat(val) > (democracyIndex as number))
-  }, [democracyIndex])
+  if (showCostOfLiving && costOfLiving !== null) {
+    filters.push(row => parseFloat(row[Column.CostOfLiving]) < costOfLiving)
+  }
 
-  // Cost of Living
-  useEffect(() => {
-    highlightMatchingCountries(Column.CostOfLiving, val => parseFloat(val) < (costOfLiving as number))
-  }, [costOfLiving])
+  if (showHDI && hdi !== null) {
+    filters.push(row => parseFloat(row[Column.HDI]) > hdi)
+  }
 
-  // HDI
-  useEffect(() => {
-    highlightMatchingCountries(Column.HDI, val => parseFloat(val) > (hdi as number))
-  }, [hdi])
+  if (showCrime && crime !== null) {
+    filters.push(row => parseFloat(row[Column.Crime]) < crime)
+  }
 
-  // Corruption
-  useEffect(() => {
-    highlightMatchingCountries(Column.Corruption, val => parseFloat(val) < (corruption as number))
-  }, [corruption])
+  if (showCorruption && corruption !== null) {
+    filters.push(row => parseFloat(row[Column.Corruption]) > corruption)
+  }
+
+  if (filters.length === 0) {
+    setHighlightCountries(new Set())
+    return
+  }
+
+  highlightMatchingCountries(filters).then(setHighlightCountries)
+}, [
+  showPotableWater,
+  showDemocracyIndex,
+  showCostOfLiving,
+  showHDI,
+  showCrime,
+  showCorruption,
+  democracyIndex,
+  costOfLiving,
+  hdi,
+  crime,
+  corruption
+])
+
+async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]): Promise<Set<string>> {
+  try {
+    const res = await fetch('/data/values.csv')
+    const csvText = await res.text()
+    const results = Papa.parse<any[]>(csvText, { header: false })
+
+
+    const countriesToHighlight = new Set<string>()
+
+    results.data.forEach((row: any[]) => {
+      if (filters.every(f => f(row))) {
+        countriesToHighlight.add(row[0].toString())
+      }
+    })
+
+    return countriesToHighlight
+  } catch (error) {
+    console.error(error)
+    return new Set()
+  }
+}
+
+
 
   if (!isClient) {
     return <div>Loading map...</div>
@@ -112,7 +144,9 @@ const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
           color: 'black'
         }}
       >
-        <label>
+        FILTERS
+        <br />
+  <label>
           <input
             type="checkbox"
             checked={showPotableWater}
@@ -120,38 +154,68 @@ const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
           />{' '}
           Potable Water
         </label>
-        <br />
-        Cost of living max:
-        <input
-        type="number"
-        value={costOfLiving}
-        onChange={e => setShowCostOfLiving(e.target.value === '' ? '' : Number(e.target.value))}
-        placeholder="Enter threshold number"
-        min={0}
-        max={120}
-        />
-        <br />
-        HDI min:
-        <input
-        type="number"
-        value={hdi}
-        onChange={e => setShowHdi(e.target.value === '' ? '' : Number(e.target.value))}
-        placeholder="Enter threshold number"
-        min={0}
-        max={0.999}
-        step={0.01}
-        />
-        <br />
-        Corruption max:
-        <input
-        type="number"
-        value={corruption}
-        onChange={e => setShowCorruption(e.target.value === '' ? '' : Number(e.target.value))}
-        placeholder="Enter threshold number"
-        min={0}
-        max={99}
-        />
-      </div>
+  <br />
+  <label>
+    <input type="checkbox" checked={showDemocracyIndex} onChange={e => setShowDemocracyIndex(e.target.checked)} />
+    {' '}Democracy Index &gt;
+    <input
+      type="number"
+      min={0}
+      step={0.2}
+      value={democracyIndex ?? ''}
+      onChange={e => setDemocracyIndex(parseFloat(e.target.value) || null)}
+    />
+  </label>
+  <br />
+  <label>
+    <input type="checkbox" checked={showCostOfLiving} onChange={e => setShowCostOfLiving(e.target.checked)} />
+    {' '}Cost of Living &lt;
+    <input
+      type="number"
+      min={0}
+      max={120}
+      value={costOfLiving ?? ''}
+      onChange={e => setCostOfLiving(parseFloat(e.target.value) || null)}
+    />
+  </label>
+  <br />
+  <label>
+    <input type="checkbox" checked={showHDI} onChange={e => setShowHDI(e.target.checked)} />
+    {' '}HDI &gt;
+    <input
+      type="number"
+      min={0}
+      max={1}
+      step={0.01}
+      value={hdi ?? ''}
+      onChange={e => setHDI(parseFloat(e.target.value) || null)}
+    />
+  </label>
+  <br />
+  <label>
+    <input type="checkbox" checked={showCrime} onChange={e => setShowCrime(e.target.checked)} />
+    {' '}Crime &lt;
+    <input
+      type="number"
+      min={0}
+      max={99}
+      value={crime ?? ''}
+      onChange={e => setCrime(parseFloat(e.target.value) || null)}
+    />
+  </label>
+  <br />
+  <label>
+    <input type="checkbox" checked={showCorruption} onChange={e => setShowCorruption(e.target.checked)} />
+    {' '}Corruption &gt;
+    <input
+      type="number"
+      min={0}
+      max={99}
+      value={corruption ?? ''}
+      onChange={e => setCorruption(parseFloat(e.target.value) || null)}
+    />
+  </label>
+</div>
 
       {/* Map */}
       <MapContainer
