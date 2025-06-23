@@ -29,7 +29,13 @@ const enum Column {
 
 const enum CsvFile {
   CountryValues = "/data/countries_values.csv",
-  CountryWeather = "/data/countries_weather.csv"
+  //CountryWeather = "/data/countries_weather.csv",
+  SubdivisionWeather = "/data/subdivisions_weather.csv"
+}
+
+const enum MapType {
+  Countries = '/data/countries.geo.json',
+  Subdivisions = '/data/subdivisions.geo.json'
 }
 
 export default function MapWithHighlight() {
@@ -53,6 +59,12 @@ const [showCorruption, setShowCorruption] = useState(false)
 const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
 
 const [monthIndex, setMonthIndex] = useState(0);
+
+const [activeMapType, setActiveMapType] = useState(MapType.Countries);
+
+const [gradientColumn, setGradientColumn] = useState<number | null>(null);
+const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
+const [filters, setFilters] = useState<((row: any[]) => boolean)[]>([]);
 
 
 
@@ -82,15 +94,46 @@ const activeMonth = monthColumns[monthIndex];
 
   useEffect(() => {
     setIsClient(true)
-
-    // Load GeoJSON
-    fetch('/data/countries.geo.json')
-      .then(res => res.json())
-      .then(data => setGeoData(data))
-      .catch(console.error)
   }, [])
 
+  useEffect(() => {
+    fetch(activeMapType)
+    .then(res => res.json())
+      .then(data => setGeoData(data))
+      .catch(console.error)
+}, [activeMapType])
+
+useEffect(() => {
+  if (gradientColumn != null && gradientSource != null) {
+    applyGradientWithFilters(gradientColumn, gradientSource, filters);
+  }
+}, [gradientColumn, gradientSource, filters]);
+
   const getColorForValue = (value: number, min: number, max: number, reverse: boolean, isWeather: boolean) => {
+
+    switch (activeMetric) {
+      case Column.Corruption: {
+        min = -10
+        max = 80
+        break;
+      }
+      case Column.Crime: {
+        min = 20
+        max = 100
+        break;
+      }
+      case Column.HDI: {
+        min = 0.2
+        max = 1.0
+        break;
+      }
+      case Column.CostOfLiving: {
+        min = 10
+        max = 100
+        break;
+      }
+    }
+ 
   let ratio = (value - min) / (max - min)
 
   if (reverse) {
@@ -100,24 +143,10 @@ const activeMonth = monthColumns[monthIndex];
   // ratio goes from 0 (low) to 1 (high)
   let r = 0, g = 0, b = 0
 
-  if (ratio < 0.33) {
-    // green to yellow
-    r = Math.round(255 * (ratio / 0.33))
-    g = 255
-  } else if (ratio < 0.66) {
-    // yellow to orange
-    r = 255
-    g = Math.round(255 * (1 - (ratio - 0.33) / 0.33))
-  } else {
-    // orange to red
-    r = 255
-    g = 0
-  }
-
   if (isWeather) {
     
-    min = 0
-    max = 50  
+    min = 10
+    max = 45  
     ratio = (value - min) / (max - min)
 
     if (ratio < 0.5) {
@@ -142,8 +171,21 @@ const activeMonth = monthColumns[monthIndex];
         b = 0;
       }
     }
+  } else {
+    if (ratio < 0.33) {
+        // green to yellow
+        r = Math.round(255 * (ratio / 0.33))
+        g = 255
+      } else if (ratio < 0.66) {
+        // yellow to orange
+        r = 255
+        g = Math.round(255 * (1 - (ratio - 0.33) / 0.33))
+      } else {
+        // orange to red
+        r = 255
+        g = 0
+      }
   }
-
   return `rgb(${r},${g},${b})`
 }
 
@@ -177,7 +219,9 @@ const getStyle = (feature: any): PathOptions => {
     setCountryValues(new Map())
     return
   }
-  fetchGradientData(activeMetric, CsvFile.CountryValues)
+  //fetchGradientData(activeMetric, CsvFile.CountryValues)
+  setGradientColumn(activeMetric);
+  setGradientSource(CsvFile.CountryValues);
 }, [activeMetric])
 
 useEffect(() => {
@@ -185,10 +229,12 @@ useEffect(() => {
     setCountryValues(new Map())
     return
   }
-  fetchGradientData(activeMonth, CsvFile.CountryWeather)
+  //applyGradientWithFilters(activeMonth, CsvFile.SubdivisionWeather)
+  setGradientColumn(activeMonth);
+  setGradientSource(CsvFile.SubdivisionWeather);
 }, [activeMonth])
 
-const fetchGradientData = async (column: number, source: CsvFile) => {
+/*const fetchGradientData = async (column: number, source: CsvFile) => {
   console.log("Fetch gradient data for column " + column);
     try {
       const res = await fetch(source)
@@ -208,7 +254,51 @@ const fetchGradientData = async (column: number, source: CsvFile) => {
     } catch (err) {
       console.error(err)
     }
+  }*/
+
+  async function applyGradientWithFilters(
+  column: number,
+  source: CsvFile,
+  filters: ((row: any[]) => boolean)[]
+) {
+  try {
+    // Step 1: Load and parse CSV
+    const res = await fetch(source);
+    const csvText = await res.text();
+    const results = Papa.parse<any[]>(csvText, { header: false });
+
+    // Step 2: Identify matching countries
+    const countriesToHighlight = new Set<string>();
+    results.data.forEach((row: any[]) => {
+      if (filters.every(f => f(row))) {
+        countriesToHighlight.add(row[0].toString());
+      }
+    });
+
+    // Step 3: Create gradient value map for matching countries only
+    const valueMap = new Map<string, number>();
+    results.data.forEach((row: any[]) => {
+      const name = row[0];
+      const val = parseFloat(row[column]);
+
+      if (
+        name &&
+        !isNaN(val) &&
+        countriesToHighlight.has(name.toString())
+      ) {
+        valueMap.set(name.toString(), val);
+      }
+    });
+
+    // Step 4: Update state
+    setCountryValues(valueMap);
+
+  } catch (err) {
+    console.error(err);
+    setCountryValues(new Map()); // fallback to empty
   }
+}
+
 
 useEffect(() => {
   const filters: ((row: any[]) => boolean)[] = []
@@ -238,11 +328,11 @@ useEffect(() => {
   }
 
   if (filters.length === 0) {
-    setHighlightCountries(new Set())
+    //setHighlightCountries(new Set())
     return
   }
 
-  highlightMatchingCountries(filters).then(setHighlightCountries)
+  setFilters(filters)//.then(setHighlightCountries)
 }, [
   showPotableWater,
   showDemocracyIndex,
@@ -257,7 +347,7 @@ useEffect(() => {
   corruption
 ])
 
-async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]): Promise<Set<string>> {
+/*async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]): Promise<Set<string>> {
   try {
     const res = await fetch(CsvFile.CountryValues)
     const csvText = await res.text()
@@ -278,7 +368,7 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
     return new Set()
   }
 }
-
+*/
 
 
   if (!isClient) {
@@ -287,7 +377,6 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%'}}>
-      {/* Filter box */}
       <div
         style={{
           position: 'absolute',
@@ -302,6 +391,32 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
           color: 'black'
         }}
       >
+        
+        MAP TYPE
+        <br />
+        <label>
+          <input
+            type="radio"
+            name="mapType"
+            value={MapType.Countries}
+            checked={activeMapType === MapType.Countries}
+            onChange={() => setActiveMapType(MapType.Countries)}
+          />{' '}
+          Country
+        </label>
+        <br />
+        <label>
+          <input
+            type="radio"
+            name="mapType"
+            value={MapType.Subdivisions}
+            checked={activeMapType === MapType.Subdivisions}
+            onChange={() => setActiveMapType(MapType.Subdivisions)}
+          />{' '}
+          Subdivision
+        </label>
+  <br />
+  <br />
         WEATHER
         <br />
         <MonthSlider monthIndex={monthIndex} setMonthIndex={setMonthIndex} />
@@ -428,7 +543,7 @@ async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]):
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {geoData && <GeoJSON data={geoData} style={getStyle} />}
+        {geoData && <GeoJSON data={geoData} key={activeMapType} style={getStyle} />}
       </MapContainer>
     </div>
   )
