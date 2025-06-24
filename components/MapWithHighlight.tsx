@@ -1,31 +1,57 @@
-import { act, useEffect, useState } from 'react'
+import { act, useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
 import type { Feature, GeoJSON as GeoJSONType, Geometry } from 'geojson'
 import type { PathOptions } from 'leaflet'
 import Papa from 'papaparse'
 import MonthSlider from './MonthSlider'
 
-const enum Column {
-  PotableWater = 1,
-  DemocracyIndex = 2,
-  Smartraveller = 3,
-  CostOfLiving = 4,
-  HDI = 5,
-  Crime = 6,
-  Corruption = 7,
-  JanFeels = 26,
-  FebFeels = 27,
-  MarFeels = 28,
-  AprFeels = 29,
-  MayFeels = 30,
-  JunFeels = 31,
-  JulFeels = 32,
-  AugFeels = 33,
-  SepFeels = 34,
-  OctFeels = 35,
-  NovFeels = 36,
-  DecFeels = 37
+const WeatherMin = -10
+const WeatherMax = 45
+
+const csvCache = new Map<string, any[]>();
+const geoJsonCache = new Map<string, any>();
+
+async function getGeoJson(source: string): Promise<any> {
+  if (geoJsonCache.has(source)) {
+    console.log("Loaded GeoJSON from cache");
+    return geoJsonCache.get(source);
+  } else {
+    const res = await fetch(source);
+    const geoJson = await res.json();
+    geoJsonCache.set(source, geoJson);
+    console.log("Fetched and cached GeoJSON");
+    return geoJson;
+  }
 }
+
+const Metric = {
+  Null: { name: "Null", column: -1, min: 0, max: 100},
+  PotableWater: { name: "Potable water", column: 1, min: 0, max: 100 },
+  DemocracyIndex: { name: "Democracy index", column: 2, min: 0, max: 100 },
+  Smartraveller: { name: "Smartraveller safety", column: 3, min: 0, max: 5 },
+  CostOfLiving: { name: "Cost of living", column: 4, min: 10, max: 100 },
+  HDI: { name: "Human Development Index", column: 5, min: 0.2, max: 1.0 },
+  Crime: { name: "Crime index", column: 6, min: 20, max: 100 },
+  Corruption: { name: "Corruption index", column: 7, min: -10, max: 80 },
+  JanFeels: { name: "January feels-like temperature", column: 26, min: WeatherMin, max: WeatherMax },
+  FebFeels: { name: "February feels-like temperature", column: 27, min: WeatherMin, max: WeatherMax },
+  MarFeels: { name: "March feels-like temperature", column: 28, min: WeatherMin, max: WeatherMax },
+  AprFeels: { name: "April feels-like temperature", column: 29, min: WeatherMin, max: WeatherMax },
+  MayFeels: { name: "May feels-like temperature", column: 30, min: WeatherMin, max: WeatherMax },
+  JunFeels: { name: "June feels-like temperature", column: 31, min: WeatherMin, max: WeatherMax },
+  JulFeels: { name: "July feels-like temperature", column: 32, min: WeatherMin, max: WeatherMax },
+  AugFeels: { name: "August feels-like temperature", column: 33, min: WeatherMin, max: WeatherMax },
+  SepFeels: { name: "September feels-like temperature", column: 34, min: WeatherMin, max: WeatherMax },
+  OctFeels: { name: "October feels-like temperature", column: 35, min: WeatherMin, max: WeatherMax },
+  NovFeels: { name: "November feels-like temperature", column: 36, min: WeatherMin, max: WeatherMax },
+  DecFeels: { name: "December feels-like temperature", column: 37, min: WeatherMin, max: WeatherMax }
+} as const;
+
+const WeatherMetrics: MetricKey[] = [
+  "JanFeels", "FebFeels", "MarFeels", "AprFeels", "MayFeels", "JunFeels",
+  "JulFeels", "AugFeels", "SepFeels", "OctFeels", "NovFeels", "DecFeels"
+];
+
 
 const enum CsvFile {
   CountryValues = "/data/countries_values.csv",
@@ -38,11 +64,15 @@ const enum MapType {
   Subdivisions = '/data/subdivisions.geo.json'
 }
 
+type MetricKey = keyof typeof Metric;
+type MetricValue = (typeof Metric)[MetricKey];
+
 export default function MapWithHighlight() {
 const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
 const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Set())
 const [isClient, setIsClient] = useState(false)
-const [activeMetric, setActiveMetric] = useState<null | Column>(null)
+const [activeMetricKey, setActiveMetricKey] = useState<MetricKey>("JanFeels");
+const activeMetric = Metric[activeMetricKey];
 const [democracyIndex, setDemocracyIndex] = useState<number | null>(null)
 const [costOfLiving, setCostOfLiving] = useState<number | null>(null)
 const [hdi, setHDI] = useState<number | null>(null)
@@ -64,32 +94,53 @@ const [activeMapType, setActiveMapType] = useState(MapType.Countries);
 
 const [gradientColumn, setGradientColumn] = useState<number | null>(null);
 const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
+
 const [filters, setFilters] = useState<((row: any[]) => boolean)[]>([]);
 
+/*const filters = useMemo(() => {
+  const result: ((row: any[]) => boolean)[] = [];
+
+  if (showDemocracyIndex && democracyIndex !== null) {
+    result.push((row) => parseFloat(row[Metric.DemocracyIndex.column]) >= democracyIndex);
+  }
+  if (showCostOfLiving && costOfLiving !== null) {
+    result.push((row) => parseFloat(row[Metric.CostOfLiving.column]) <= costOfLiving);
+  }
+  if (showHDI && hdi !== null) {
+    result.push((row) => parseFloat(row[Metric.HDI.column]) >= hdi);
+  }
+  if (showCrime && crime !== null) {
+    result.push((row) => parseFloat(row[Metric.Crime.column]) <= crime);
+  }
+  if (showCorruption && corruption !== null) {
+    result.push((row) => parseFloat(row[Metric.Corruption.column]) <= corruption);
+  }
+  if (showPotableWater) {
+    result.push((row) => parseFloat(row[Metric.PotableWater.column]) >= 1);
+  }
+
+  return result;
+}, [
+  showDemocracyIndex,
+  democracyIndex,
+  showCostOfLiving,
+  costOfLiving,
+  showHDI,
+  hdi,
+  showCrime,
+  crime,
+  showCorruption,
+  corruption,
+  showPotableWater,
+]);*/
 
 
-
-const reversedGradientColumns = new Set<Column>([
-  Column.HDI,
-  Column.Corruption
+const reversedGradientColumns = new Set<MetricValue>([
+  Metric.HDI,
+  Metric.Corruption
 ])
 
-const monthColumns: Column[] = [
-  Column.JanFeels,
-  Column.FebFeels,
-  Column.MarFeels,
-  Column.AprFeels,
-  Column.MayFeels,
-  Column.JunFeels,
-  Column.JulFeels,
-  Column.AugFeels,
-  Column.SepFeels,
-  Column.OctFeels,
-  Column.NovFeels,
-  Column.DecFeels
-]
-
-const activeMonth = monthColumns[monthIndex];
+//const activeMonth = weatherMetrics[monthIndex];
 
 
   useEffect(() => {
@@ -97,11 +148,18 @@ const activeMonth = monthColumns[monthIndex];
   }, [])
 
   useEffect(() => {
-    fetch(activeMapType)
-    .then(res => res.json())
-      .then(data => setGeoData(data))
-      .catch(console.error)
-}, [activeMapType])
+  async function loadGeoJson() {
+    try {
+      // activeMapType should be the URL to GeoJSON file
+      const geoJson = await getGeoJson(activeMapType);
+      setGeoData(geoJson);
+    } catch (err) {
+      console.error(err);
+      setGeoData(null);
+    }
+  }
+  loadGeoJson();
+}, [activeMapType]);
 
 useEffect(() => {
   if (gradientColumn != null && gradientSource != null) {
@@ -109,31 +167,11 @@ useEffect(() => {
   }
 }, [gradientColumn, gradientSource, filters]);
 
-  const getColorForValue = (value: number, min: number, max: number, reverse: boolean, isWeather: boolean) => {
+  const getColorForValue = (value: number, metric: MetricValue, reverse: boolean, isWeather: boolean) => {
 
-    switch (activeMetric) {
-      case Column.Corruption: {
-        min = -10
-        max = 80
-        break;
-      }
-      case Column.Crime: {
-        min = 20
-        max = 100
-        break;
-      }
-      case Column.HDI: {
-        min = 0.2
-        max = 1.0
-        break;
-      }
-      case Column.CostOfLiving: {
-        min = 10
-        max = 100
-        break;
-      }
-    }
- 
+  let min = metric.min
+  let max = metric.max 
+
   let ratio = (value - min) / (max - min)
 
   if (reverse) {
@@ -144,10 +182,6 @@ useEffect(() => {
   let r = 0, g = 0, b = 0
 
   if (isWeather) {
-    
-    min = 10
-    max = 45  
-    ratio = (value - min) / (max - min)
 
     if (ratio < 0.5) {
       // blue to green
@@ -189,21 +223,30 @@ useEffect(() => {
   return `rgb(${r},${g},${b})`
 }
 
+  const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
+
+  // On activeMetric, countryValues, or highlightCountries change,
+  // update the styles on the existing GeoJSON layer
+  useEffect(() => {
+    if (geoJsonLayerRef.current) {
+      geoJsonLayerRef.current.setStyle(feature => getStyle(feature));
+    }
+  }, [activeMetricKey, countryValues, highlightCountries]); // run effect when these change
+
 const getStyle = (feature: any): PathOptions => {
-  const name = feature.properties.ADMIN || feature.properties.name
-  const isHighlighted = highlightCountries.has(name)
-  const value = countryValues.get(name)
+  const name = feature.properties.name?.trim();
+  const name_en = feature.properties.name_en?.trim();
+
+  const isHighlighted = highlightCountries.has(name) || highlightCountries.has(name_en);
+  const value = countryValues.get(name) ?? countryValues.get(name_en);
 
   let fillColor = isHighlighted ? 'green' : '#ccc'
 
   if (countryValues.size > 0 && value !== undefined) {
-    const values = Array.from(countryValues.values())
-    const min = Math.min(...values)
-    const max = Math.max(...values)
     const reverse = reversedGradientColumns.has(activeMetric!!)
-    const isWeather = !activeMetric && monthColumns.includes(activeMonth!!)
+    const isWeather = WeatherMetrics.includes(activeMetricKey!!)
 
-    fillColor = getColorForValue(value, min, max, reverse, isWeather)
+    fillColor = getColorForValue(value, activeMetric, reverse, isWeather)
   }
 
   return {
@@ -219,112 +262,93 @@ const getStyle = (feature: any): PathOptions => {
     setCountryValues(new Map())
     return
   }
-  //fetchGradientData(activeMetric, CsvFile.CountryValues)
-  setGradientColumn(activeMetric);
-  setGradientSource(CsvFile.CountryValues);
+  setGradientColumn(activeMetric.column);
+  let csvFile = WeatherMetrics.includes(activeMetricKey) ? CsvFile.SubdivisionWeather : CsvFile.CountryValues
+  setGradientSource(csvFile);
 }, [activeMetric])
 
 useEffect(() => {
-  if (!activeMonth) {
-    setCountryValues(new Map())
-    return
-  }
-  //applyGradientWithFilters(activeMonth, CsvFile.SubdivisionWeather)
-  setGradientColumn(activeMonth);
-  setGradientSource(CsvFile.SubdivisionWeather);
-}, [activeMonth])
+  let weatherMetric = WeatherMetrics[monthIndex]
+  setActiveMetricKey(weatherMetric)
+}, [monthIndex])
 
-/*const fetchGradientData = async (column: number, source: CsvFile) => {
-  console.log("Fetch gradient data for column " + column);
-    try {
-      const res = await fetch(source)
-      const csvText = await res.text()
-      const results = Papa.parse<any[]>(csvText, { header: false })
-      const valueMap = new Map<string, number>()
 
-      results.data.forEach(row => {
-        const name = row[0]
-        const val = parseFloat(row[column])
-        if (name && !isNaN(val)) {
-          valueMap.set(name.toString(), val)
-        }
-      })
-
-      setCountryValues(valueMap)
-    } catch (err) {
-      console.error(err)
-    }
-  }*/
-
-  async function applyGradientWithFilters(
+async function applyGradientWithFilters(
   column: number,
-  source: CsvFile,
+  source: CsvFile,  // Assuming source is a URL string for fetch
   filters: ((row: any[]) => boolean)[]
 ) {
   try {
-    // Step 1: Load and parse CSV
-    const res = await fetch(source);
-    const csvText = await res.text();
-    const results = Papa.parse<any[]>(csvText, { header: false });
+    console.log("Running applyGradientWithFilters", { source, filters }, performance.now());
+    let data: any[];
+    
+    // Use cached data if available
+    if (csvCache.has(source)) {
+      data = csvCache.get(source)!;
+      console.log("Loaded csv from cache");
+    } else {
+      const res = await fetch(source);
+      const csvText = await res.text();
+      const results = Papa.parse<any[]>(csvText, { header: false });
+      data = results.data;
+      csvCache.set(source, data);
+      console.log("Cached csv data");
+    }
 
-    // Step 2: Identify matching countries
-    const countriesToHighlight = new Set<string>();
-    results.data.forEach((row: any[]) => {
-      if (filters.every(f => f(row))) {
-        countriesToHighlight.add(row[0].toString());
-      }
-    });
+    console.log("CSV loaded ", performance.now())
 
-    // Step 3: Create gradient value map for matching countries only
     const valueMap = new Map<string, number>();
-    results.data.forEach((row: any[]) => {
-      const name = row[0];
-      const val = parseFloat(row[column]);
 
-      if (
-        name &&
-        !isNaN(val) &&
-        countriesToHighlight.has(name.toString())
-      ) {
-        valueMap.set(name.toString(), val);
+    // Single loop: filter rows and build valueMap in one go
+    for (const row of data) {
+      if (!row || row.length === 0) continue;
+
+      const countryName = String(row[0]);
+      if (filters.every(f => f(row))) {
+        const val = parseFloat(row[column]);
+        if (!isNaN(val)) {
+          valueMap.set(countryName, val);
+        }
       }
-    });
+    }
 
-    // Step 4: Update state
+    console.log("Value map loaded ", performance.now())
+
     setCountryValues(valueMap);
+
+    console.log("Country values set ", performance.now())
 
   } catch (err) {
     console.error(err);
-    setCountryValues(new Map()); // fallback to empty
+    setCountryValues(new Map());
   }
 }
 
-
-useEffect(() => {
+    useEffect(() => {
   const filters: ((row: any[]) => boolean)[] = []
 
   if (showPotableWater) {
-    filters.push(row => row[Column.PotableWater]?.toLowerCase() === 'true')
+    filters.push(row => row[Metric.PotableWater.column]?.toLowerCase() === 'true')
   }
 
   if (showDemocracyIndex && democracyIndex !== null) {
-    filters.push(row => parseFloat(row[Column.DemocracyIndex]) > democracyIndex)
+    filters.push(row => parseFloat(row[Metric.DemocracyIndex.column]) > democracyIndex)
   }
 
   if (showCostOfLiving && costOfLiving !== null) {
-    filters.push(row => parseFloat(row[Column.CostOfLiving]) < costOfLiving)
+    filters.push(row => parseFloat(row[Metric.CostOfLiving.column]) < costOfLiving)
   }
 
   if (showHDI && hdi !== null) {
-    filters.push(row => parseFloat(row[Column.HDI]) > hdi)
+    filters.push(row => parseFloat(row[Metric.HDI.column]) > hdi)
   }
 
   if (showCrime && crime !== null) {
-    filters.push(row => parseFloat(row[Column.Crime]) < crime)
+    filters.push(row => parseFloat(row[Metric.Crime.column]) < crime)
   }
 
   if (showCorruption && corruption !== null) {
-    filters.push(row => parseFloat(row[Column.Corruption]) > corruption)
+    filters.push(row => parseFloat(row[Metric.Corruption.column]) > corruption)
   }
 
   if (filters.length === 0) {
@@ -347,29 +371,37 @@ useEffect(() => {
   corruption
 ])
 
-/*async function highlightMatchingCountries(filters: ((row: any[]) => boolean)[]): Promise<Set<string>> {
-  try {
-    const res = await fetch(CsvFile.CountryValues)
-    const csvText = await res.text()
-    const results = Papa.parse<any[]>(csvText, { header: false })
+
+useEffect(() => {
+  const layer = geoJsonLayerRef.current;
+  if (!layer) return;
+
+  layer.eachLayer((featureLayer) => {
+    const feature = (featureLayer as any).feature;
+    createOnEachFeature(countryValues)(feature, featureLayer);
+  });
+}, [countryValues]);
 
 
-    const countriesToHighlight = new Set<string>()
+const createOnEachFeature = (values: Map<string, number>) => (
+  feature: any,
+  layer: L.Layer
+) => {
+  layer.on({
+    click: () => {
+      const props = feature.properties;
+      const name = props.name;
+      const value = values.get(name);
 
-    results.data.forEach((row: any[]) => {
-      if (filters.every(f => f(row))) {
-        countriesToHighlight.add(row[0].toString())
-      }
-    })
+      const popupContent = `
+        <strong>${name}</strong><br />
+        ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
+      `;
 
-    return countriesToHighlight
-  } catch (error) {
-    console.error(error)
-    return new Set()
-  }
-}
-*/
-
+      layer.bindPopup(popupContent).openPopup();
+    }
+  });
+};
 
   if (!isClient) {
     return <div>Loading map...</div>
@@ -425,36 +457,38 @@ useEffect(() => {
 <br />
         <label>
   <input
-    type="checkbox"
-    checked={activeMetric === Column.CostOfLiving}
-     onChange={(e) => setActiveMetric(e.target.checked ? Column.CostOfLiving : null)}
+    type="radio"
+    checked={activeMetricKey === "CostOfLiving"}
+    onChange={(e) =>
+      setActiveMetricKey(e.target.checked ? "CostOfLiving" : "Null")
+  }
   />
   {' '}Cost of Living
 </label>
 <br />
 <label>
   <input
-    type="checkbox"
-    checked={activeMetric === Column.HDI}
-     onChange={(e) => setActiveMetric(e.target.checked ? Column.HDI : null)}
+    type="radio"
+    checked={activeMetricKey === "HDI"}
+     onChange={(e) => setActiveMetricKey(e.target.checked ? "HDI" : "Null")}
   />
   {' '}HDI
 </label>
 <br />
 <label>
   <input
-    type="checkbox"
-    checked={activeMetric === Column.Crime}
-     onChange={(e) => setActiveMetric(e.target.checked ? Column.Crime : null)}
+    type="radio"
+    checked={activeMetricKey === "Crime"}
+     onChange={(e) => setActiveMetricKey(e.target.checked ? "Crime" : "Null")}
   />
   {' '}Crime
 </label>
 <br />
 <label>
   <input
-    type="checkbox"
-    checked={activeMetric === Column.Corruption}
-     onChange={(e) => setActiveMetric(e.target.checked ? Column.Corruption : null)}
+    type="radio"
+    checked={activeMetric === Metric.Corruption}
+     onChange={(e) => setActiveMetricKey(e.target.checked ? "Corruption" : "Null")}
   />
   {' '}Corruption
 </label>
@@ -543,7 +577,9 @@ useEffect(() => {
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {geoData && <GeoJSON data={geoData} key={activeMapType} style={getStyle} />}
+        {geoData && countryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
+        key={activeMapType}
+        style={getStyle} onEachFeature={createOnEachFeature(countryValues)} />}
       </MapContainer>
     </div>
   )
