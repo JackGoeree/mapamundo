@@ -55,7 +55,6 @@ const WeatherMetrics: MetricKey[] = [
 
 const enum CsvFile {
   CountryValues = "/data/countries_values.csv",
-  //CountryWeather = "/data/countries_weather.csv",
   SubdivisionWeather = "/data/subdivisions_weather.csv"
 }
 
@@ -97,50 +96,10 @@ const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
 
 const [filters, setFilters] = useState<((row: any[]) => boolean)[]>([]);
 
-/*const filters = useMemo(() => {
-  const result: ((row: any[]) => boolean)[] = [];
-
-  if (showDemocracyIndex && democracyIndex !== null) {
-    result.push((row) => parseFloat(row[Metric.DemocracyIndex.column]) >= democracyIndex);
-  }
-  if (showCostOfLiving && costOfLiving !== null) {
-    result.push((row) => parseFloat(row[Metric.CostOfLiving.column]) <= costOfLiving);
-  }
-  if (showHDI && hdi !== null) {
-    result.push((row) => parseFloat(row[Metric.HDI.column]) >= hdi);
-  }
-  if (showCrime && crime !== null) {
-    result.push((row) => parseFloat(row[Metric.Crime.column]) <= crime);
-  }
-  if (showCorruption && corruption !== null) {
-    result.push((row) => parseFloat(row[Metric.Corruption.column]) <= corruption);
-  }
-  if (showPotableWater) {
-    result.push((row) => parseFloat(row[Metric.PotableWater.column]) >= 1);
-  }
-
-  return result;
-}, [
-  showDemocracyIndex,
-  democracyIndex,
-  showCostOfLiving,
-  costOfLiving,
-  showHDI,
-  hdi,
-  showCrime,
-  crime,
-  showCorruption,
-  corruption,
-  showPotableWater,
-]);*/
-
-
 const reversedGradientColumns = new Set<MetricValue>([
   Metric.HDI,
   Metric.Corruption
 ])
-
-//const activeMonth = weatherMetrics[monthIndex];
 
 
   useEffect(() => {
@@ -150,15 +109,19 @@ const reversedGradientColumns = new Set<MetricValue>([
   useEffect(() => {
   async function loadGeoJson() {
     try {
-      // activeMapType should be the URL to GeoJSON file
+      console.log(activeMetric);
       const geoJson = await getGeoJson(activeMapType);
       setGeoData(geoJson);
+
+      applyGradientWithFilters(activeMetric.column,  WeatherMetrics.includes(activeMetricKey!!) ? CsvFile.SubdivisionWeather : CsvFile.CountryValues, filters);
     } catch (err) {
       console.error(err);
       setGeoData(null);
     }
   }
-  loadGeoJson();
+
+  loadGeoJson()
+
 }, [activeMapType]);
 
 useEffect(() => {
@@ -225,8 +188,13 @@ useEffect(() => {
 
   const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
 
-  // On activeMetric, countryValues, or highlightCountries change,
-  // update the styles on the existing GeoJSON layer
+  useEffect(() => {
+  if (geoJsonLayerRef.current && geoData) {
+    geoJsonLayerRef.current.clearLayers();
+    geoJsonLayerRef.current.addData(geoData);
+  }
+}, [geoData]);
+
   useEffect(() => {
     if (geoJsonLayerRef.current) {
       geoJsonLayerRef.current.setStyle(feature => getStyle(feature));
@@ -234,11 +202,23 @@ useEffect(() => {
   }, [activeMetricKey, countryValues, highlightCountries]); // run effect when these change
 
 const getStyle = (feature: any): PathOptions => {
-  const name = feature.properties.name?.trim();
+  let name = feature.properties.name?.trim();
   const name_en = feature.properties.name_en?.trim();
+  let country_iso3 = feature.properties.adm1_code?.split('-')[0];
+  let countryKey = `${country_iso3}:${name}`;
+
+  if (activeMapType === MapType.Countries) {
+    //name = feature.properties.admin.trim();
+    //country_iso3 = feature.properties.iso_a3.trim();
+    countryKey = name;
+  }
+
 
   const isHighlighted = highlightCountries.has(name) || highlightCountries.has(name_en);
-  const value = countryValues.get(name) ?? countryValues.get(name_en);
+  //console.log("Getstyle countrykey: " + countryKey);
+  //console.log(countryValues);
+  const value = countryValues.get(countryKey)// ?? countryValues.get(name_en);
+  //console.log(value);
 
   let fillColor = isHighlighted ? 'green' : '#ccc'
 
@@ -279,7 +259,7 @@ async function applyGradientWithFilters(
   filters: ((row: any[]) => boolean)[]
 ) {
   try {
-    console.log("Running applyGradientWithFilters", { source, filters }, performance.now());
+    console.log("Running applyGradientWithFilters", {column}, {source}, {activeMetric}, {filters});
     let data: any[];
     
     // Use cached data if available
@@ -304,10 +284,20 @@ async function applyGradientWithFilters(
       if (!row || row.length === 0) continue;
 
       const countryName = String(row[0]);
+      
+      const countryIso3 = String(row[1].split('.')[0])
+      let countryKey = `${countryIso3}:${countryName}`;
+
+      if (activeMapType === MapType.Countries) {
+        //console.log(activeMapType);
+          countryKey = countryName;
+      }
+
+      //console.log("applygradient countryKey: " + countryKey);
       if (filters.every(f => f(row))) {
         const val = parseFloat(row[column]);
         if (!isNaN(val)) {
-          valueMap.set(countryName, val);
+          valueMap.set(countryKey, val);
         }
       }
     }
@@ -317,6 +307,7 @@ async function applyGradientWithFilters(
     setCountryValues(valueMap);
 
     console.log("Country values set ", performance.now())
+    //console.log(valueMap);
 
   } catch (err) {
     console.error(err);
@@ -351,12 +342,7 @@ async function applyGradientWithFilters(
     filters.push(row => parseFloat(row[Metric.Corruption.column]) > corruption)
   }
 
-  if (filters.length === 0) {
-    //setHighlightCountries(new Set())
-    return
-  }
-
-  setFilters(filters)//.then(setHighlightCountries)
+  setFilters(filters)
 }, [
   showPotableWater,
   showDemocracyIndex,
@@ -387,18 +373,31 @@ const createOnEachFeature = (values: Map<string, number>) => (
   feature: any,
   layer: L.Layer
 ) => {
+  const props = feature.properties;
+  const name = props.name?.trim();
+  const country = props.admin;
+  const country_iso3 = props.adm1_code?.split('-')[0]?.trim();
+  let countryKey = `${country_iso3}:${name}`;
+
+
+  if (activeMapType === MapType.Countries) {
+    //name = feature.properties.admin.trim();
+    //country_iso3 = feature.properties.iso_a3.trim();
+    countryKey = name;
+  }
+  
+    const value = values.get(countryKey);
+  const popupTitle = activeMapType === MapType.Countries ? `<strong>${name}<br />` : `<strong>${name}, </strong>${country}<br />`
+
+  const popupContent = `${popupTitle}
+    ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
+  `;
+
+  layer.bindPopup(popupContent); 
+
   layer.on({
     click: () => {
-      const props = feature.properties;
-      const name = props.name;
-      const value = values.get(name);
-
-      const popupContent = `
-        <strong>${name}</strong><br />
-        ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
-      `;
-
-      layer.bindPopup(popupContent).openPopup();
+      layer.openPopup();
     }
   });
 };
@@ -574,8 +573,15 @@ const createOnEachFeature = (values: Map<string, number>) => (
         scrollWheelZoom={true}
       >
         <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    attribution="&copy; OpenStreetMap contributors"
+  />
+        <TileLayer
+          url="/data/chelsa/{z}/{x}/{y}.png"opacity={0.6} // Adjust for visibility
+    zIndex={10} // Ensure it's above base layer
+     maxNativeZoom={7}
+          //attribution='&copy; OpenStreetMap contributors'
+          //url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {geoData && countryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
         key={activeMapType}

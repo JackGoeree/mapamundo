@@ -1,0 +1,31 @@
+1. Download CHELSA data from here: https://envicloud.wsl.ch/#/?bucket=https%3A%2F%2Fos.zhdk.cloud.switch.ch%2Fchelsav2%2F&prefix=%2F
+- global/monthly/tas
+- global/monthly/hurs
+
+2. Drag the TIF files into QGIS
+
+3. QGIS Raster calculator to get the comfort index (includes conversion of tas from tenth kelvin to Celsius): 
+round(
+  (
+    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) < 20
+  ) * (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15)
+  +
+  (
+    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) >= 20
+  ) * (
+    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15)
+    + (("CHELSA_hurs_12_2018_V.2.1" / 100) ^ 2)
+    * ((( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) - 20)
+    * 6
+  ),
+  1
+)
+
+
+4. QGIS: Raster → Extraction → Clip Raster by Mask Layer to remove water. Use this as mask: https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_land.zip
+
+5. QGIS In bottom right, change to EPSG:3857
+
+6. QGIS Processing toolbox: Generate XYZ tiles
+
+7. Drop tile folders into mapamundo folder
