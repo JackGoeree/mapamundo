@@ -29,7 +29,7 @@ const Metric = {
   PotableWater: { name: "Potable water", column: 1, min: 0, max: 100 },
   DemocracyIndex: { name: "Democracy index", column: 2, min: 0, max: 100 },
   Smartraveller: { name: "Smartraveller safety", column: 3, min: 0, max: 5 },
-  CostOfLiving: { name: "Cost of living", column: 4, min: 10, max: 100 },
+  CostOfLiving: { name: "Cost of living", column: 13, min: 500, max: 5000 },
   HDI: { name: "Human Development Index", column: 5, min: 0.2, max: 1.0 },
   Crime: { name: "Crime index", column: 6, min: 20, max: 100 },
   Corruption: { name: "Corruption index", column: 7, min: -10, max: 80 },
@@ -106,7 +106,7 @@ const reversedGradientColumns = new Set<MetricValue>([
     setIsClient(true)
   }, [])
 
-  useEffect(() => {
+useEffect(() => {
   async function loadGeoJson() {
     try {
       console.log(activeMetric);
@@ -237,8 +237,8 @@ const getStyle = (feature: any): PathOptions => {
   }
 }
 
-  useEffect(() => {
-  if (!activeMetric) {
+useEffect(() => {
+   if (!activeMetric) {
     setCountryValues(new Map())
     return
   }
@@ -307,7 +307,6 @@ async function applyGradientWithFilters(
     setCountryValues(valueMap);
 
     console.log("Country values set ", performance.now())
-    //console.log(valueMap);
 
   } catch (err) {
     console.error(err);
@@ -573,10 +572,10 @@ const createOnEachFeature = (values: Map<string, number>) => (
         scrollWheelZoom={true}
       >
         <TileLayer
-    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-    attribution="&copy; OpenStreetMap contributors"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
   />
-        <TileLayer
+          <TileLayer
           url="/data/chelsa/{z}/{x}/{y}.png"opacity={0.6} // Adjust for visibility
     zIndex={10} // Ensure it's above base layer
      maxNativeZoom={7}

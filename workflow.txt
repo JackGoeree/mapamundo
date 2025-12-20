@@ -2,30 +2,29 @@
 - global/monthly/tas
 - global/monthly/hurs
 
-2. Drag the TIF files into QGIS
+2. Drag the TIF files into QGIS.
 
-3. QGIS Raster calculator to get the comfort index (includes conversion of tas from tenth kelvin to Celsius): 
-round(
-  (
-    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) < 20
-  ) * (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15)
-  +
-  (
-    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) >= 20
-  ) * (
-    (( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15)
-    + (("CHELSA_hurs_12_2018_V.2.1" / 100) ^ 2)
-    * ((( "CHELSA_tas_12_2019_V.2.1" / 10 ) - 273.15) - 20)
-    * 6
-  ),
-  1
+3. QGIS: Raster calculator to convert tas from tenth kelvin to celsius:
+("tas11@1" / 10) - 273.15
+
+4. QGIS Raster calculator to get the comfort index: 
+( "tas11c@1" < 20 ) * "tas11c@1" +
+( "tas11c@1" >= 20 ) * (
+  "tas11c@1" + 
+  ( ( "hurs11@1" / 100 ) ^ 2 ) * 
+  ( "tas11c@1" - 20 ) * 6
 )
 
+Note: REMEMBER THE @1 AFTER LAYER NAMES
 
-4. QGIS: Raster → Extraction → Clip Raster by Mask Layer to remove water. Use this as mask: https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_land.zip
+5. QGIS: Raster → Extraction → Clip Raster by Mask Layer to remove water. Check keep resolution of input raster. Save the output to a file. Use this as mask: https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_land.zip
 
-5. QGIS In bottom right, change to EPSG:3857
+6. QGIS: double click the comfort layer > Symbology > Render type change to Singleband pseudocolor. Pick color ramp turbo. Set min to -15 and max to 50.
 
-6. QGIS Processing toolbox: Generate XYZ tiles
+7. QGIS: In bottom right, change to EPSG:3857.
 
-7. Drop tile folders into mapamundo folder
+8. QGIS: Processing toolbox: Generate XYZ tiles (zoom 1-7).
+
+9. Drop tile folders into mapamundo folder.
+
+Note: any errors at step 8 usually caused by incorrect EPSG. Try warp (reproject) to EPSG 3857
