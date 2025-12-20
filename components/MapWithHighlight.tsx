@@ -60,7 +60,8 @@ const enum CsvFile {
 
 const enum MapType {
   Countries = '/data/countries.geo.json',
-  Subdivisions = '/data/subdivisions.geo.json'
+  Subdivisions = '/data/subdivisions.geo.json',
+  Ethnicities = '/data/greg.geojson'
 }
 
 type MetricKey = keyof typeof Metric;
@@ -202,6 +203,16 @@ useEffect(() => {
   }, [activeMetricKey, countryValues, highlightCountries]); // run effect when these change
 
 const getStyle = (feature: any): PathOptions => {
+  if (activeMapType === MapType.Ethnicities) {
+    const ethnicity = feature.properties.G1SHORTNAM?.trim();
+    const fillColor = ethnicity ? getEthnicityColor(ethnicity) : '#ccc';
+    return {
+      fillColor,
+      weight: 1,
+      fillOpacity: 0.7,
+      color: 'black'
+    };
+  }
   let name = feature.properties.name?.trim();
   const name_en = feature.properties.name_en?.trim();
   let country_iso3 = feature.properties.adm1_code?.split('-')[0];
@@ -252,6 +263,17 @@ useEffect(() => {
   setActiveMetricKey(weatherMetric)
 }, [monthIndex])
 
+const ethnicityColors: Map<string, string> = new Map();
+
+function getEthnicityColor(name: string) {
+  if (!ethnicityColors.has(name)) {
+    const index = ethnicityColors.size;  // 0,1,2,...
+    const hue = (index * 137.508) % 360; // golden angle for good spread
+    const color = `hsl(${hue}, 65%, 55%)`;
+    ethnicityColors.set(name, color);
+  }
+  return ethnicityColors.get(name)!;
+}
 
 async function applyGradientWithFilters(
   column: number,
@@ -385,12 +407,21 @@ const createOnEachFeature = (values: Map<string, number>) => (
     countryKey = name;
   }
   
+    let popupContent = '';
+  
+  if (activeMapType === MapType.Ethnicities) {
+    const ethnicity = props.G1SHORTNAM?.trim() ?? 'Unknown';
+    popupContent = `<strong>${ethnicity}</strong>`;
+  } else {
     const value = values.get(countryKey);
-  const popupTitle = activeMapType === MapType.Countries ? `<strong>${name}<br />` : `<strong>${name}, </strong>${country}<br />`
+    const popupTitle = activeMapType === MapType.Countries 
+      ? `<strong>${name}<br />` 
+      : `<strong>${name}, </strong>${country}<br />`;
 
-  const popupContent = `${popupTitle}
-    ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
-  `;
+    popupContent = `${popupTitle}
+      ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
+    `;
+  }
 
   layer.bindPopup(popupContent); 
 
@@ -444,6 +475,17 @@ const createOnEachFeature = (values: Map<string, number>) => (
             onChange={() => setActiveMapType(MapType.Subdivisions)}
           />{' '}
           Subdivision
+        </label>
+        <br />
+        <label>
+          <input
+            type="radio"
+            name="mapType"
+            value={MapType.Ethnicities}
+            checked={activeMapType === MapType.Ethnicities}
+            onChange={() => setActiveMapType(MapType.Ethnicities)}
+          />{' '}
+          Ethnicities
         </label>
   <br />
   <br />
