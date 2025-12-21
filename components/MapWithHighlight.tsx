@@ -174,8 +174,10 @@ const getStyle = (feature: any): PathOptions => {
   }
   let name = feature.properties.name?.trim();
   const name_en = feature.properties.name_en?.trim();
-  let country_iso3 = feature.properties.adm1_code?.split('-')[0];
-  let countryKey = `${country_iso3}:${name}`;
+  
+  //let country_iso3 = feature.properties.adm1_code?.split('-')[0];
+  //let countryKey = `${country_iso3}:${name}`;
+  let countryKey = name;
 
   if (activeMapType === MapType.Countries) {
     //name = feature.properties.admin.trim();
@@ -267,7 +269,8 @@ async function applyGradientWithFilters(
       const countryName = String(row[0]);
       
       const countryIso3 = String(row[1].split('.')[0])
-      let countryKey = `${countryIso3}:${countryName}`;
+      //let countryKey = `${countryIso3}:${countryName}`;
+      let countryKey = countryName;
 
       if (activeMapType === MapType.Countries) {
         //console.log(activeMapType);
@@ -286,6 +289,7 @@ async function applyGradientWithFilters(
     console.log("Value map loaded ", performance.now())
 
     setCountryValues(valueMap);
+    console.log(countryValues);
 
     console.log("Country values set ", performance.now())
 
@@ -352,7 +356,8 @@ const createOnEachFeature = (values: Map<string, number>) => (
   const name = props.name?.trim();
   const country = props.admin;
   const country_iso3 = props.adm1_code?.split('-')[0]?.trim();
-  let countryKey = `${country_iso3}:${name}`;
+  //let countryKey = `${country_iso3}:${name}`;
+  let countryKey = name;
 
 
   if (activeMapType === MapType.Countries) {
