@@ -5,6 +5,11 @@ import type { PathOptions } from 'leaflet'
 import Papa from 'papaparse'
 import MonthSlider from './MonthSlider'
 import { CsvFile, MapType, Metric, WeatherMetrics } from './Enums'
+import CrimeFilter from './filters/CrimeFilter'
+import HdiFilter from './filters/HdiFilter'
+import CostOfLivingFilter from './filters/CostOfLivingFilter'
+import CorruptionFilter from './filters/CorruptionFilter'
+import DemocracyFilter from './filters/DemocracyFilter'
 
 
 const csvCache = new Map<string, any[]>();
@@ -33,18 +38,12 @@ const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Se
 const [isClient, setIsClient] = useState(false)
 const [activeMetricKey, setActiveMetricKey] = useState<MetricKey>("JanFeels");
 const activeMetric = Metric[activeMetricKey];
+const [showPotableWater, setShowPotableWater] = useState(false);
 const [democracyIndex, setDemocracyIndex] = useState<number | null>(null)
 const [costOfLiving, setCostOfLiving] = useState<number | null>(null)
-const [hdi, setHDI] = useState<number | null>(null)
-const [crime, setCrime] = useState<number | null>(null)
+const [hdi, setHdi] = useState<number | null>(null);
+const [crime, setCrime] = useState<number | null>(null);
 const [corruption, setCorruption] = useState<number | null>(null)
-
-const [showPotableWater, setShowPotableWater] = useState(false)
-const [showDemocracyIndex, setShowDemocracyIndex] = useState(false)
-const [showCostOfLiving, setShowCostOfLiving] = useState(false)
-const [showHDI, setShowHDI] = useState(false)
-const [showCrime, setShowCrime] = useState(false)
-const [showCorruption, setShowCorruption] = useState(false)
 
 const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
 
@@ -303,34 +302,29 @@ async function applyGradientWithFilters(
     filters.push(row => row[Metric.PotableWater.column]?.toLowerCase() === 'true')
   }
 
-  if (showDemocracyIndex && democracyIndex !== null) {
+  if (democracyIndex !== null) {
     filters.push(row => parseFloat(row[Metric.DemocracyIndex.column]) > democracyIndex)
   }
 
-  if (showCostOfLiving && costOfLiving !== null) {
+  if (costOfLiving !== null) {
     filters.push(row => parseFloat(row[Metric.CostOfLiving.column]) < costOfLiving)
   }
 
-  if (showHDI && hdi !== null) {
+  if (hdi !== null) {
     filters.push(row => parseFloat(row[Metric.HDI.column]) > hdi)
   }
 
-  if (showCrime && crime !== null) {
+  if (crime !== null) {
     filters.push(row => parseFloat(row[Metric.Crime.column]) < crime)
   }
 
-  if (showCorruption && corruption !== null) {
+  if (corruption !== null) {
     filters.push(row => parseFloat(row[Metric.Corruption.column]) > corruption)
   }
 
   setFilters(filters)
 }, [
   showPotableWater,
-  showDemocracyIndex,
-  showCostOfLiving,
-  showHDI,
-  showCrime,
-  showCorruption,
   democracyIndex,
   costOfLiving,
   hdi,
@@ -504,66 +498,11 @@ const createOnEachFeature = (values: Map<string, number>) => (
           Potable Water
         </label>
   <br />
-  <label>
-    <input type="checkbox" checked={showDemocracyIndex} onChange={e => setShowDemocracyIndex(e.target.checked)} />
-    {' '}Democracy Index &gt;
-    <input
-      type="number"
-      min={0}
-      step={0.2}
-      value={democracyIndex ?? ''}
-      onChange={e => setDemocracyIndex(parseFloat(e.target.value) || null)}
-    />
-  </label>
-  <br />
-  <label>
-    <input type="checkbox" checked={showCostOfLiving} onChange={e => setShowCostOfLiving(e.target.checked)} />
-    {' '}Cost of Living &lt;
-    <input
-      type="number"
-      min={0}
-      max={120}
-      value={costOfLiving ?? ''}
-      onChange={e => setCostOfLiving(parseFloat(e.target.value) || null)}
-    />
-  </label>
-  <br />
-  <label>
-    <input type="checkbox" checked={showHDI} onChange={e => setShowHDI(e.target.checked)} />
-    {' '}HDI &gt;
-    <input
-      type="number"
-      min={0}
-      max={1}
-      step={0.01}
-      value={hdi ?? ''}
-      onChange={e => setHDI(parseFloat(e.target.value) || null)}
-    />
-  </label>
-  <br />
-  <label>
-    <input type="checkbox" checked={showCrime} onChange={e => setShowCrime(e.target.checked)} />
-    {' '}Crime &lt;
-    <input
-      type="number"
-      min={0}
-      max={99}
-      value={crime ?? ''}
-      onChange={e => setCrime(parseFloat(e.target.value) || null)}
-    />
-  </label>
-  <br />
-  <label>
-    <input type="checkbox" checked={showCorruption} onChange={e => setShowCorruption(e.target.checked)} />
-    {' '}Corruption &gt;
-    <input
-      type="number"
-      min={0}
-      max={99}
-      value={corruption ?? ''}
-      onChange={e => setCorruption(parseFloat(e.target.value) || null)}
-    />
-  </label>
+  <DemocracyFilter democracy={democracyIndex} setDemocracy={setDemocracyIndex} />
+  <CostOfLivingFilter costOfLiving={costOfLiving} setCostOfLiving={setCostOfLiving} />
+  <HdiFilter hdi={hdi} setHdi={setHdi} />
+  <CrimeFilter crime={crime} setCrime={setCrime} />
+  <CorruptionFilter corruption={corruption} setCorruption={setCorruption} />
 </div>
 
       {/* Map */}
