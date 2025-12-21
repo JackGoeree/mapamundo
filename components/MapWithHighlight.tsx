@@ -174,17 +174,12 @@ const getStyle = (feature: any): PathOptions => {
   }
   let name = feature.properties.name?.trim();
   const name_en = feature.properties.name_en?.trim();
-  
-  //let country_iso3 = feature.properties.adm1_code?.split('-')[0];
-  //let countryKey = `${country_iso3}:${name}`;
   let countryKey = name;
 
-  if (activeMapType === MapType.Countries) {
-    //name = feature.properties.admin.trim();
-    //country_iso3 = feature.properties.iso_a3.trim();
-    countryKey = name;
+  if (activeMapType === MapType.Subdivisions) {
+    let country_iso3 = feature.properties.adm1_code?.split('-')[0];
+    countryKey = `${country_iso3}:${name}`;
   }
-
 
   const isHighlighted = highlightCountries.has(name) || highlightCountries.has(name_en);
   //console.log("Getstyle countrykey: " + countryKey);
@@ -267,14 +262,12 @@ async function applyGradientWithFilters(
       if (!row || row.length === 0) continue;
 
       const countryName = String(row[0]);
-      
-      const countryIso3 = String(row[1].split('.')[0])
-      //let countryKey = `${countryIso3}:${countryName}`;
       let countryKey = countryName;
 
-      if (activeMapType === MapType.Countries) {
-        //console.log(activeMapType);
-          countryKey = countryName;
+
+      if (activeMapType === MapType.Subdivisions) {
+        const countryIso3 = String(row[1].split('.')[0])
+        countryKey = `${countryIso3}:${countryName}`;
       }
 
       //console.log("applygradient countryKey: " + countryKey);
@@ -355,15 +348,14 @@ const createOnEachFeature = (values: Map<string, number>) => (
   const props = feature.properties;
   const name = props.name?.trim();
   const country = props.admin;
-  const country_iso3 = props.adm1_code?.split('-')[0]?.trim();
-  //let countryKey = `${country_iso3}:${name}`;
   let countryKey = name;
 
 
-  if (activeMapType === MapType.Countries) {
-    //name = feature.properties.admin.trim();
-    //country_iso3 = feature.properties.iso_a3.trim();
-    countryKey = name;
+  if (activeMapType === MapType.Subdivisions) {
+    if (activeMapType === MapType.Subdivisions) {
+    let country_iso3 = feature.properties.adm1_code?.split('-')[0];
+    countryKey = `${country_iso3}:${name}`;
+  }
   }
   
     let popupContent = '';
