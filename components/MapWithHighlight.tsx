@@ -10,6 +10,7 @@ import HdiFilter from './filters/HdiFilter'
 import CostOfLivingFilter from './filters/CostOfLivingFilter'
 import CorruptionFilter from './filters/CorruptionFilter'
 import DemocracyFilter from './filters/DemocracyFilter'
+import SmartravellerFilter from './filters/SmartravellerFilter'
 
 
 const csvCache = new Map<string, any[]>();
@@ -44,7 +45,7 @@ const [costOfLiving, setCostOfLiving] = useState<number | null>(null)
 const [hdi, setHdi] = useState<number | null>(null);
 const [crime, setCrime] = useState<number | null>(null);
 const [corruption, setCorruption] = useState<number | null>(null)
-
+const [smartraveller, setSmartraveller] = useState<number | null>(null)
 const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
 
 const [monthIndex, setMonthIndex] = useState(0);
@@ -319,6 +320,10 @@ async function applyGradientWithFilters(
     filters.push(row => parseFloat(row[Metric.Corruption.column]) > corruption)
   }
 
+  if (smartraveller !== null) {
+    filters.push(row => parseFloat(row[Metric.Smartraveller.column]) < smartraveller)
+  }
+
   setFilters(filters)
 }, [
   showPotableWater,
@@ -326,7 +331,8 @@ async function applyGradientWithFilters(
   costOfLiving,
   hdi,
   crime,
-  corruption
+  corruption,
+  smartraveller
 ])
 
 
@@ -483,6 +489,15 @@ const createOnEachFeature = (values: Map<string, number>) => (
   />
   {' '}Corruption
 </label>
+<br/>
+<label>
+  <input
+    type="radio"
+    checked={activeMetric === Metric.Smartraveller}
+     onChange={(e) => setActiveMetricKey(e.target.checked ? "Smartraveller" : "Null")}
+  />
+  {' '}Smartraveller
+</label>
 <br /><br />
         FILTERS
         <br />
@@ -500,6 +515,7 @@ const createOnEachFeature = (values: Map<string, number>) => (
   <HdiFilter hdi={hdi} setHdi={setHdi} />
   <CrimeFilter crime={crime} setCrime={setCrime} />
   <CorruptionFilter corruption={corruption} setCorruption={setCorruption} />
+  <SmartravellerFilter smartraveller={smartraveller} setSmartraveller={setSmartraveller} />
 </div>
 
       {/* Map */}
