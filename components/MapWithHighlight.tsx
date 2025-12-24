@@ -35,7 +35,6 @@ type MetricValue = (typeof Metric)[MetricKey];
 
 export default function MapWithHighlight() {
 const [geoData, setGeoData] = useState<GeoJSONType | null>(null)
-const [highlightCountries, setHighlightCountries] = useState<Set<string>>(new Set())
 const [isClient, setIsClient] = useState(false)
 const [activeMetricKey, setActiveMetricKey] = useState<MetricKey>("JanFeels");
 const activeMetric = Metric[activeMetricKey];
@@ -46,7 +45,8 @@ const [hdi, setHdi] = useState<number | null>(null);
 const [crime, setCrime] = useState<number | null>(null);
 const [corruption, setCorruption] = useState<number | null>(null)
 const [smartraveller, setSmartraveller] = useState<number | null>(null)
-const [countryValues, setCountryValues] = useState<Map<string, number>>(new Map())
+const [allCountryValues, setAllCountryValues] = useState<Map<string, number>>(new Map());
+const [filteredCountryValues, setFilteredCountryValues] = useState<Map<string, number>>(new Map());
 
 const [monthIndex, setMonthIndex] = useState(0);
 
@@ -160,7 +160,7 @@ useEffect(() => {
     if (geoJsonLayerRef.current) {
       geoJsonLayerRef.current.setStyle(feature => getStyle(feature));
     }
-  }, [activeMetricKey, countryValues, highlightCountries]); // run effect when these change
+  }, [activeMetricKey, allCountryValues]); // run effect when these change
 
 const getStyle = (feature: any): PathOptions => {
   if (activeMapType === MapType.Ethnicities) {
@@ -169,7 +169,7 @@ const getStyle = (feature: any): PathOptions => {
     return {
       fillColor,
       weight: 1,
-      fillOpacity: 0.7,
+      fillOpacity: 0.8,
       color: 'black'
     };
   }
@@ -178,37 +178,42 @@ const getStyle = (feature: any): PathOptions => {
   let countryKey = name;
 
   if (activeMapType === MapType.Subdivisions) {
-    let country_iso3 = feature.properties.adm1_code?.split('-')[0];
-    countryKey = `${country_iso3}:${name}`;
+    const iso3 = feature.properties.adm1_code?.split('-')[0];
+    countryKey = `${iso3}:${name}`;
   }
 
-  const isHighlighted = highlightCountries.has(name) || highlightCountries.has(name_en);
-  //console.log("Getstyle countrykey: " + countryKey);
-  //console.log(countryValues);
-  const value = countryValues.get(countryKey)// ?? countryValues.get(name_en);
-  //console.log(value);
+  const hasData = allCountryValues.has(countryKey);
+  const filteredValue = filteredCountryValues.get(countryKey);
 
-  let fillColor = isHighlighted ? 'green' : '#ccc'
+  let fillColor = '#aaa'; // default: NO DATA
+  let fillOpacity = 0.7;
 
-  if (countryValues.size > 0 && value !== undefined) {
-    const reverse = reversedGradientColumns.has(activeMetric!!)
-    const isWeather = WeatherMetrics.includes(activeMetricKey!!)
+  if (hasData && filteredValue === undefined) {
+    // DATA EXISTS but FILTERED OUT
+    fillColor = '#777';
+    fillOpacity = 0.7;
+  }
 
-    fillColor = getColorForValue(value, activeMetric, reverse, isWeather)
+  if (filteredValue !== undefined) {
+    const reverse = reversedGradientColumns.has(activeMetric);
+    const isWeather = WeatherMetrics.includes(activeMetricKey);
+    fillColor = getColorForValue(filteredValue, activeMetric, reverse, isWeather);
+    fillOpacity = 0.7;
   }
 
   return {
     fillColor,
     weight: 1,
-    fillOpacity: 0.7,
+    fillOpacity,
     color: 'black',
-  }
-}
+  };
+};
 
 useEffect(() => {
    if (!activeMetric) {
-    setCountryValues(new Map())
-    return
+    setAllCountryValues(new Map());
+    setFilteredCountryValues(new Map());
+    return;
   }
   setGradientColumn(activeMetric.column);
   let csvFile = WeatherMetrics.includes(activeMetricKey) ? CsvFile.SubdivisionWeather : CsvFile.CountryValues
@@ -258,38 +263,40 @@ async function applyGradientWithFilters(
 
     const valueMap = new Map<string, number>();
 
-    // Single loop: filter rows and build valueMap in one go
+    const allMap = new Map<string, number>();
+    const filteredMap = new Map<string, number>();
+
     for (const row of data) {
       if (!row || row.length === 0) continue;
 
       const countryName = String(row[0]);
       let countryKey = countryName;
 
-
       if (activeMapType === MapType.Subdivisions) {
-        const countryIso3 = String(row[1].split('.')[0])
+        const countryIso3 = String(row[1].split('.')[0]);
         countryKey = `${countryIso3}:${countryName}`;
       }
 
-      //console.log("applygradient countryKey: " + countryKey);
+      const val = parseFloat(row[column]);
+      if (isNaN(val)) continue;
+
+      // Always record presence of data
+      allMap.set(countryKey, val);
+
+      // Only include if filters pass
       if (filters.every(f => f(row))) {
-        const val = parseFloat(row[column]);
-        if (!isNaN(val)) {
-          valueMap.set(countryKey, val);
-        }
+        filteredMap.set(countryKey, val);
       }
     }
 
-    console.log("Value map loaded ", performance.now())
+    setAllCountryValues(allMap);
+    setFilteredCountryValues(filteredMap);
 
-    setCountryValues(valueMap);
-    console.log(countryValues);
-
-    console.log("Country values set ", performance.now())
 
   } catch (err) {
     console.error(err);
-    setCountryValues(new Map());
+    setAllCountryValues(new Map());
+    setFilteredCountryValues(new Map());
   }
 }
 
@@ -342,9 +349,9 @@ useEffect(() => {
 
   layer.eachLayer((featureLayer) => {
     const feature = (featureLayer as any).feature;
-    createOnEachFeature(countryValues)(feature, featureLayer);
+    createOnEachFeature(allCountryValues)(feature, featureLayer);
   });
-}, [countryValues]);
+}, [allCountryValues]);
 
 
 const createOnEachFeature = (values: Map<string, number>) => (
@@ -536,9 +543,9 @@ const createOnEachFeature = (values: Map<string, number>) => (
           //attribution='&copy; OpenStreetMap contributors'
           //url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {geoData && countryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
+        {geoData && allCountryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
         key={activeMapType}
-        style={getStyle} onEachFeature={createOnEachFeature(countryValues)} />}
+        style={getStyle} onEachFeature={createOnEachFeature(allCountryValues)} />}
       </MapContainer>
     </div>
   )
