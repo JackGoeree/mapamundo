@@ -57,6 +57,8 @@ const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
 
 const [filters, setFilters] = useState<((row: any[]) => boolean)[]>([]);
 
+const nationalFallbackKeys = useRef<Set<string>>(new Set());
+
 const reversedGradientColumns = new Set<MetricValue>([
   Metric.HDI,
   Metric.Corruption
@@ -160,53 +162,62 @@ useEffect(() => {
     if (geoJsonLayerRef.current) {
       geoJsonLayerRef.current.setStyle(feature => getStyle(feature));
     }
-  }, [activeMetricKey, allCountryValues]); // run effect when these change
+  }, [activeMetricKey, allCountryValues, nationalFallbackKeys]);
 
 const getStyle = (feature: any): PathOptions => {
-  if (activeMapType === MapType.Ethnicities) {
-    const ethnicity = feature.properties.G1SHORTNAM?.trim();
-    const fillColor = ethnicity ? getEthnicityColor(ethnicity) : '#ccc';
-    return {
-      fillColor,
-      weight: 1,
-      fillOpacity: 0.8,
-      color: 'black'
-    };
-  }
-  let name = feature.properties.name?.trim();
-  const name_en = feature.properties.name_en?.trim();
-  let countryKey = name;
+    let fillOpacity = 0.7;
+    let fillColor = '#aaa'; // default: NO DATA
+    let stroke = true;
+    let weight = 0.5;
 
-  if (activeMapType === MapType.Subdivisions) {
-    const iso3 = feature.properties.adm1_code?.split('-')[0];
-    countryKey = `${iso3}:${name}`;
-  }
+    if (activeMapType === MapType.Ethnicities) {
+      const ethnicity = feature.properties.G1SHORTNAM?.trim();
+      const fillColor = ethnicity ? getEthnicityColor(ethnicity) : '#ccc';
+      return {
+        fillColor,
+        weight: 1,
+        fillOpacity,
+        color: 'black'
+      };
+    }
 
-  const hasData = allCountryValues.has(countryKey);
-  const filteredValue = filteredCountryValues.get(countryKey);
+    let name = feature.properties.name?.trim();
+    let countryKey = name;
 
-  let fillColor = '#aaa'; // default: NO DATA
-  let fillOpacity = 0.7;
+    if (activeMapType === MapType.Subdivisions) {
+      const iso3 = feature.properties.adm1_code?.split('-')[0];
+      countryKey = `${iso3}:${name}`;
+    }
 
-  if (hasData && filteredValue === undefined) {
-    // DATA EXISTS but FILTERED OUT
-    fillColor = '#777';
-    fillOpacity = 0.7;
-  }
-
-  if (filteredValue !== undefined) {
+    const hasData = allCountryValues.has(countryKey);
+    const filteredValue = filteredCountryValues.get(countryKey);
     const reverse = reversedGradientColumns.has(activeMetric);
     const isWeather = WeatherMetrics.includes(activeMetricKey);
-    fillColor = getColorForValue(filteredValue, activeMetric, reverse, isWeather);
-    fillOpacity = 0.7;
-  }
 
-  return {
-    fillColor,
-    weight: 1,
-    fillOpacity,
-    color: 'black',
-  };
+    if (filteredValue !== undefined) {
+      // Value exists AND passes filters
+      fillColor = getColorForValue(filteredValue, activeMetric, reverse, isWeather);
+      // Value is national data
+      if (nationalFallbackKeys.current.has(countryKey)) {
+        //fillColor = "purple"
+          //fillOpacity = 0.1;
+        }
+
+    } else if (hasData) {
+      // Has value but filtered out
+      fillColor = '#777';
+    } else {
+      // No data
+      fillColor = '#aaa';
+    }
+
+    return {
+      fillColor,
+      weight,
+      fillOpacity,
+      color: 'black',
+      stroke,
+    };
 };
 
 useEffect(() => {
@@ -215,6 +226,8 @@ useEffect(() => {
     setFilteredCountryValues(new Map());
     return;
   }
+  nationalFallbackKeys.current.clear();
+
   setGradientColumn(activeMetric.column);
   let csvFile = WeatherMetrics.includes(activeMetricKey) ? CsvFile.SubdivisionWeather : CsvFile.CountryValues
   setGradientSource(csvFile);
@@ -261,33 +274,58 @@ async function applyGradientWithFilters(
 
     console.log("CSV loaded ", performance.now())
 
-    const valueMap = new Map<string, number>();
-
+    const nationalValues = new Map<string, number>(); // ISO3 -> value
     const allMap = new Map<string, number>();
     const filteredMap = new Map<string, number>();
 
     for (const row of data) {
-      if (!row || row.length === 0) continue;
+  if (!row || row.length === 0) continue;
 
-      const countryName = String(row[0]);
-      let countryKey = countryName;
+  const countryName = String(row[0]);
+  const secondCol = String(row[1] || '').trim();
+  let countryKey = countryName;
 
-      if (activeMapType === MapType.Subdivisions) {
-        const countryIso3 = String(row[1].split('.')[0]);
-        countryKey = `${countryIso3}:${countryName}`;
-      }
+  const val = parseFloat(row[column]);
 
-      const val = parseFloat(row[column]);
-      if (isNaN(val)) continue;
-
-      // Always record presence of data
-      allMap.set(countryKey, val);
-
-      // Only include if filters pass
-      if (filters.every(f => f(row))) {
-        filteredMap.set(countryKey, val);
-      }
+  if (/^[A-Z]{3}$/.test(secondCol)) {
+    // National-level row (ISO3)
+    if (!isNaN(val)) {
+      nationalValues.set(secondCol, val);
+      allMap.set(countryName, val);
+      if (filters.every(f => f(row))) filteredMap.set(countryName, val);
     }
+  } else if (activeMapType === MapType.Subdivisions && secondCol.includes('.')) {
+    const iso3 = secondCol.split('.')[0];
+    countryKey = `${iso3}:${countryName}`;
+
+    if (!isNaN(val)) {
+      // Subdivision value
+      allMap.set(countryKey, val);
+      if (filters.every(f => f(row))) filteredMap.set(countryKey, val);
+    } else if (nationalValues.has(iso3)) {
+      // National fallback
+      const nationalVal = nationalValues.get(iso3)!;
+      allMap.set(countryKey, nationalVal);
+
+      // Apply filters to national value
+      if (filters.every(f => {
+        // Rewrite row so it matches structure expected by filters
+        const fakeRow = [...row];
+        fakeRow[column] = nationalVal.toString();
+        return f(fakeRow);
+      })) {
+        filteredMap.set(countryKey, nationalVal);
+      }
+      nationalFallbackKeys.current.add(countryKey);
+    }
+  } else {
+    // Standalone country
+    if (!isNaN(val)) {
+      allMap.set(countryKey, val);
+      if (filters.every(f => f(row))) filteredMap.set(countryKey, val);
+    }
+  }
+}
 
     setAllCountryValues(allMap);
     setFilteredCountryValues(filteredMap);
@@ -383,8 +421,10 @@ const createOnEachFeature = (values: Map<string, number>) => (
       : `<strong>${name}, </strong>${country}<br />`;
 
     popupContent = `${popupTitle}
-      ${value !== undefined ? `${activeMetric.name}: ${value}` : 'No data'}
-    `;
+    ${value !== undefined 
+      ? `${activeMetric.name}: ${value}${nationalFallbackKeys.current.has(countryKey) ? '<br /> (Estimate from national data)' : ''}`
+      : 'No data'
+    }`;
   }
 
   layer.bindPopup(popupContent); 
