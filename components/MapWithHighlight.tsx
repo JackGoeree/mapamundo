@@ -11,7 +11,8 @@ import CostOfLivingFilter from './filters/CostOfLivingFilter'
 import CorruptionFilter from './filters/CorruptionFilter'
 import DemocracyFilter from './filters/DemocracyFilter'
 import SmartravellerFilter from './filters/SmartravellerFilter'
-import GradientToggle from './gradients/GradientToggle'
+import GradientToggle from './toggles/GradientToggle'
+import MapTypeToggle from './toggles/MapTypeToggle'
 
 
 const csvCache = new Map<string, any[]>();
@@ -460,47 +461,19 @@ const createOnEachFeature = (values: Map<string, number>) => (
         
         MAP TYPE
         <br />
-        <label>
-          <input
-            type="radio"
-            name="mapType"
-            value={MapType.Countries}
-            checked={activeMapType === MapType.Countries}
-            onChange={() => setActiveMapType(MapType.Countries)}
-          />{' '}
-          Country
-        </label>
-        <br />
-        <label>
-          <input
-            type="radio"
-            name="mapType"
-            value={MapType.Subdivisions}
-            checked={activeMapType === MapType.Subdivisions}
-            onChange={() => setActiveMapType(MapType.Subdivisions)}
-          />{' '}
-          Subdivision
-        </label>
-        <br />
-        <label>
-          <input
-            type="radio"
-            name="mapType"
-            value={MapType.Ethnicities}
-            checked={activeMapType === MapType.Ethnicities}
-            onChange={() => setActiveMapType(MapType.Ethnicities)}
-          />{' '}
-          Ethnicities
-        </label>
-        <br />
-        <br />
+        <MapTypeToggle label={'Country'} value={MapType.Countries} activeMapType={activeMapType} setActiveMapType={setActiveMapType} ></MapTypeToggle>
+        <MapTypeToggle label={'Subdivision'} value={MapType.Subdivisions} activeMapType={activeMapType} setActiveMapType={setActiveMapType} ></MapTypeToggle>
+        <MapTypeToggle label={'Ethnicities'} value={MapType.Ethnicities} activeMapType={activeMapType} setActiveMapType={setActiveMapType} ></MapTypeToggle>
+        <br/>
+
         WEATHER
         <br />
         <MonthSlider monthIndex={monthIndex} setMonthIndex={setMonthIndex} />
         <br />
+
         GRADIENTS
         <br />
-        <GradientToggle label="CostOfLiving" value="CostOfLiving" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <GradientToggle label="Cost Of Living" value="CostOfLiving" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
         <GradientToggle label="HDI" value="HDI" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
         <GradientToggle label="Crime" value="Crime" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
         <GradientToggle label="Corruption" value="Corruption" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>

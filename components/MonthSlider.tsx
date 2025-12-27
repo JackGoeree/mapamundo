@@ -1,6 +1,10 @@
 import React from 'react';
 
-const months = [
+const monthIndices = [
+  '1','2','3','4','5','6','7','8','9','10','11','12'
+];
+
+const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
@@ -23,12 +27,12 @@ export default function MonthSlider({ monthIndex, setMonthIndex }: MonthSliderPr
         onChange={(e) => setMonthIndex(Number(e.target.value))}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        {months.map((m) => (
-          <span key={m} style={{ fontSize: '0.75em' }}>{m.slice(0, 3)}</span>
+        {monthIndices.map((m) => (
+          <span key={m} style={{ fontSize: '0.75em' }}>{m}</span>
         ))}
       </div>
       <label htmlFor="month-slider">
-        Month: {months[monthIndex]}
+        Month: {monthNames[monthIndex]}
       </label>
     </div>
   );
