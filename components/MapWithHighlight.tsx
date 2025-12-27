@@ -21,20 +21,6 @@ import MapTypeToggle from "./toggles/MapTypeToggle";
 const csvCache = new Map<string, any[]>();
 const geoJsonCache = new Map<string, any>();
 
-// -------------------- HELPERS --------------------
-async function getGeoJson(source: string): Promise<any> {
-  if (geoJsonCache.has(source)) {
-    console.log("Loaded GeoJSON from cache");
-    return geoJsonCache.get(source);
-  } else {
-    const res = await fetch(source);
-    const geoJson = await res.json();
-    geoJsonCache.set(source, geoJson);
-    console.log("Fetched and cached GeoJSON");
-    return geoJson;
-  }
-}
-
 // -------------------- TYPES --------------------
 type MetricKey = keyof typeof Metric;
 type MetricValue = (typeof Metric)[MetricKey];
@@ -203,6 +189,111 @@ export default function MapWithHighlight() {
   }, [allCountryValues]);
 
   // -------------------- FUNCTIONS --------------------
+
+  // -------------------- HELPER FUNCTIONS --------------------
+  async function getGeoJson(source: string): Promise<any> {
+    if (geoJsonCache.has(source)) {
+      console.log("Loaded GeoJSON from cache");
+      return geoJsonCache.get(source);
+    } else {
+      const res = await fetch(source);
+      const geoJson = await res.json();
+      geoJsonCache.set(source, geoJson);
+      console.log("Fetched and cached GeoJSON");
+      return geoJson;
+    }
+  }
+
+  async function loadCsvData(source: CsvFile): Promise<any[]> {
+    if (csvCache.has(source)) {
+      console.log("Loaded csv from cache");
+      return csvCache.get(source)!;
+    }
+
+    const res = await fetch(source);
+    const csvText = await res.text();
+    const results = Papa.parse<any[]>(csvText, { header: false });
+
+    csvCache.set(source, results.data);
+    console.log("Cached csv data");
+
+    return results.data;
+  }
+
+  function handleNationalRow(
+    row: any[],
+    iso3: string,
+    value: number,
+    filters: ((row: any[]) => boolean)[],
+    nationalValues: Map<string, number>,
+    allMap: Map<string, number>,
+    filteredMap: Map<string, number>,
+  ) {
+    nationalValues.set(iso3, value);
+    allMap.set(row[0], value);
+
+    if (passesFilters(row, filters)) {
+      filteredMap.set(row[0], value);
+    }
+  }
+
+  function handleSubdivisionRow(
+    row: any[],
+    countryKey: string,
+    iso3: string,
+    value: number | null,
+    column: number,
+    filters: ((row: any[]) => boolean)[],
+    nationalValues: Map<string, number>,
+    allMap: Map<string, number>,
+    filteredMap: Map<string, number>,
+  ) {
+    if (value !== null) {
+      allMap.set(countryKey, value);
+      if (passesFilters(row, filters)) {
+        filteredMap.set(countryKey, value);
+      }
+      return;
+    }
+
+    if (!nationalValues.has(iso3)) return;
+
+    const nationalVal = nationalValues.get(iso3)!;
+    allMap.set(countryKey, nationalVal);
+
+    const fakeRow = [...row];
+    fakeRow[column] = nationalVal.toString();
+
+    if (passesFilters(fakeRow, filters)) {
+      filteredMap.set(countryKey, nationalVal);
+    }
+
+    nationalFallbackKeys.current.add(countryKey);
+  }
+
+  function handleDefaultRow(
+    row: any[],
+    countryKey: string,
+    value: number,
+    filters: ((row: any[]) => boolean)[],
+    allMap: Map<string, number>,
+    filteredMap: Map<string, number>,
+  ) {
+    allMap.set(countryKey, value);
+
+    if (passesFilters(row, filters)) {
+      filteredMap.set(countryKey, value);
+    }
+  }
+
+  function passesFilters(
+    row: any[],
+    filters: ((row: any[]) => boolean)[],
+  ): boolean {
+    return filters.every((f) => f(row));
+  }
+
+  // -------------------- STYLE FUNCTIONS --------------
   function getEthnicityColor(name: string) {
     if (!ethnicityColors.has(name)) {
       const index = ethnicityColors.size; // 0,1,2,...
@@ -319,21 +410,20 @@ export default function MapWithHighlight() {
     };
   };
 
+  // -------------------- MAP FUNCTIONS --------------
+
   const createOnEachFeature =
     (values: Map<string, number>) => (feature: any, layer: L.Layer) => {
       const props = feature.properties;
       const name = props.name?.trim();
       const country = props.admin;
       let countryKey = name;
+      let popupContent = "";
 
       if (activeMapType === MapType.Subdivisions) {
         const country_iso3 = feature.properties.adm1_code?.split("-")[0];
         countryKey = `${country_iso3}:${name}`;
-      }
-
-      let popupContent = "";
-
-      if (activeMapType === MapType.Ethnicities) {
+      } else if (activeMapType === MapType.Ethnicities) {
         const ethnicity = props.G1SHORTNAM?.trim() ?? "Unknown";
         popupContent = `<strong>${ethnicity}</strong>`;
       } else {
@@ -365,81 +455,63 @@ export default function MapWithHighlight() {
     filters: ((row: any[]) => boolean)[],
   ) {
     try {
-      console.log(
-        "Running applyGradientWithFilters",
-        { column },
-        { source },
-        { activeMetric },
-        { filters },
-      );
-
-      let data: any[];
-
-      if (csvCache.has(source)) {
-        data = csvCache.get(source)!;
-        console.log("Loaded csv from cache");
-      } else {
-        const res = await fetch(source);
-        const csvText = await res.text();
-        const results = Papa.parse<any[]>(csvText, { header: false });
-        data = results.data;
-        csvCache.set(source, data);
-        console.log("Cached csv data");
-      }
+      const data = await loadCsvData(source);
 
       const nationalValues = new Map<string, number>();
       const allMap = new Map<string, number>();
       const filteredMap = new Map<string, number>();
 
       for (const row of data) {
-        if (!row || row.length === 0) continue;
+        if (!row?.length) continue;
 
         const countryName = String(row[0]);
         const secondCol = String(row[1] || "").trim();
-        let countryKey = countryName;
-        const val = parseFloat(row[column]);
+        const rawValue = parseFloat(row[column]);
+        const value = isNaN(rawValue) ? null : rawValue;
 
-        if (/^[A-Z]{3}$/.test(secondCol)) {
-          // National-level row (ISO3)
-          if (!isNaN(val)) {
-            nationalValues.set(secondCol, val);
-            allMap.set(countryName, val);
-            if (filters.every((f) => f(row))) filteredMap.set(countryName, val);
-          }
-        } else if (
-          activeMapType === MapType.Subdivisions &&
-          secondCol.includes(".")
-        ) {
+        // National (ISO3)
+        if (/^[A-Z]{3}$/.test(secondCol) && value !== null) {
+          handleNationalRow(
+            row,
+            secondCol,
+            value,
+            filters,
+            nationalValues,
+            allMap,
+            filteredMap,
+          );
+          continue;
+        }
+
+        // Subdivision
+        if (activeMapType === MapType.Subdivisions && secondCol.includes(".")) {
           const iso3 = secondCol.split(".")[0];
-          countryKey = `${iso3}:${countryName}`;
+          const countryKey = `${iso3}:${countryName}`;
 
-          if (!isNaN(val)) {
-            // Subdivision value
-            allMap.set(countryKey, val);
-            if (filters.every((f) => f(row))) filteredMap.set(countryKey, val);
-          } else if (nationalValues.has(iso3)) {
-            // National fallback
-            const nationalVal = nationalValues.get(iso3)!;
-            allMap.set(countryKey, nationalVal);
+          handleSubdivisionRow(
+            row,
+            countryKey,
+            iso3,
+            value,
+            column,
+            filters,
+            nationalValues,
+            allMap,
+            filteredMap,
+          );
+          continue;
+        }
 
-            // Apply filters to national value
-            if (
-              filters.every((f) => {
-                // Rewrite row so it matches structure expected by filters
-                const fakeRow = [...row];
-                fakeRow[column] = nationalVal.toString();
-                return f(fakeRow);
-              })
-            ) {
-              filteredMap.set(countryKey, nationalVal);
-            }
-            nationalFallbackKeys.current.add(countryKey);
-          }
-        } else {
-          if (!isNaN(val)) {
-            allMap.set(countryKey, val);
-            if (filters.every((f) => f(row))) filteredMap.set(countryKey, val);
-          }
+        // Default country row
+        if (value !== null) {
+          handleDefaultRow(
+            row,
+            countryName,
+            value,
+            filters,
+            allMap,
+            filteredMap,
+          );
         }
       }
 
