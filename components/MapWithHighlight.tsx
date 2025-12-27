@@ -423,7 +423,9 @@ export default function MapWithHighlight() {
       if (activeMapType === MapType.Subdivisions) {
         const country_iso3 = feature.properties.adm1_code?.split("-")[0];
         countryKey = `${country_iso3}:${name}`;
-      } else if (activeMapType === MapType.Ethnicities) {
+      }
+
+      if (activeMapType === MapType.Ethnicities) {
         const ethnicity = props.G1SHORTNAM?.trim() ?? "Unknown";
         popupContent = `<strong>${ethnicity}</strong>`;
       } else {
