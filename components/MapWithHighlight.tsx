@@ -11,6 +11,7 @@ import CostOfLivingFilter from './filters/CostOfLivingFilter'
 import CorruptionFilter from './filters/CorruptionFilter'
 import DemocracyFilter from './filters/DemocracyFilter'
 import SmartravellerFilter from './filters/SmartravellerFilter'
+import GradientToggle from './gradients/GradientToggle'
 
 
 const csvCache = new Map<string, any[]>();
@@ -491,102 +492,52 @@ const createOnEachFeature = (values: Map<string, number>) => (
           />{' '}
           Ethnicities
         </label>
-  <br />
-  <br />
+        <br />
+        <br />
         WEATHER
         <br />
         <MonthSlider monthIndex={monthIndex} setMonthIndex={setMonthIndex} />
         <br />
         GRADIENTS
-<br />
-        <label>
-  <input
-    type="radio"
-    checked={activeMetricKey === "CostOfLiving"}
-    onChange={(e) =>
-      setActiveMetricKey(e.target.checked ? "CostOfLiving" : "Null")
-  }
-  />
-  {' '}Cost of Living
-</label>
-<br />
-<label>
-  <input
-    type="radio"
-    checked={activeMetricKey === "HDI"}
-     onChange={(e) => setActiveMetricKey(e.target.checked ? "HDI" : "Null")}
-  />
-  {' '}HDI
-</label>
-<br />
-<label>
-  <input
-    type="radio"
-    checked={activeMetricKey === "Crime"}
-     onChange={(e) => setActiveMetricKey(e.target.checked ? "Crime" : "Null")}
-  />
-  {' '}Crime
-</label>
-<br />
-<label>
-  <input
-    type="radio"
-    checked={activeMetric === Metric.Corruption}
-     onChange={(e) => setActiveMetricKey(e.target.checked ? "Corruption" : "Null")}
-  />
-  {' '}Corruption
-</label>
-<br/>
-<label>
-  <input
-    type="radio"
-    checked={activeMetric === Metric.Smartraveller}
-     onChange={(e) => setActiveMetricKey(e.target.checked ? "Smartraveller" : "Null")}
-  />
-  {' '}Smartraveller
-</label>
-<br /><br />
+        <br />
+        <GradientToggle label="CostOfLiving" value="CostOfLiving" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <GradientToggle label="HDI" value="HDI" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <GradientToggle label="Crime" value="Crime" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <GradientToggle label="Corruption" value="Corruption" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <GradientToggle label="Smartraveller" value="Smartraveller" activeMetricKey={activeMetricKey} setActiveMetricKey={setActiveMetricKey}></GradientToggle>
+        <br />
         FILTERS
         <br />
-  <label>
-          <input
-            type="checkbox"
-            checked={showPotableWater}
-            onChange={e => setShowPotableWater(e.target.checked)}
-          />{' '}
-          Potable Water
-        </label>
-  <br />
-  <DemocracyFilter democracy={democracyIndex} setDemocracy={setDemocracyIndex} />
-  <CostOfLivingFilter costOfLiving={costOfLiving} setCostOfLiving={setCostOfLiving} />
-  <HdiFilter hdi={hdi} setHdi={setHdi} />
-  <CrimeFilter crime={crime} setCrime={setCrime} />
-  <CorruptionFilter corruption={corruption} setCorruption={setCorruption} />
-  <SmartravellerFilter smartraveller={smartraveller} setSmartraveller={setSmartraveller} />
-</div>
+        {/*<DemocracyFilter democracy={democracyIndex} setDemocracy={setDemocracyIndex}/> */}
+        <CostOfLivingFilter costOfLiving={costOfLiving} setCostOfLiving={setCostOfLiving} />
+        <HdiFilter hdi={hdi} setHdi={setHdi} />
+        <CrimeFilter crime={crime} setCrime={setCrime} />
+        <CorruptionFilter corruption={corruption} setCorruption={setCorruption} />
+        <SmartravellerFilter smartraveller={smartraveller} setSmartraveller={setSmartraveller} />
+        </div>
 
-      {/* Map */}
-      <MapContainer
-        style={{ height: '100%', width: '100%' }}
-        center={[20, 0]}
-        zoom={2}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap contributors"
-  />
+        {/* Map */}
+        <MapContainer
+          style={{ height: '100%', width: '100%' }}
+          center={[20, 0]}
+          zoom={2}
+          scrollWheelZoom={true}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
+          />
           <TileLayer
           url="/data/chelsa/{z}/{x}/{y}.png"opacity={0.6} // Adjust for visibility
-    zIndex={10} // Ensure it's above base layer
-     maxNativeZoom={7}
-          //attribution='&copy; OpenStreetMap contributors'
-          //url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {geoData && allCountryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
-        key={activeMapType}
-        style={getStyle} onEachFeature={createOnEachFeature(allCountryValues)} />}
-      </MapContainer>
+          zIndex={10} // Ensure it's above base layer
+          maxNativeZoom={7}
+            //attribution='&copy; OpenStreetMap contributors'
+            //url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {geoData && allCountryValues.size > 0 && <GeoJSON data={geoData} ref={geoJsonLayerRef} 
+          key={activeMapType}
+          style={getStyle} onEachFeature={createOnEachFeature(allCountryValues)} />}
+        </MapContainer>
     </div>
   )
 }

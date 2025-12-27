@@ -1,7 +1,7 @@
 const WeatherMin = -10
 const WeatherMax = 45
 
-type MetricKey = keyof typeof Metric;
+export type MetricKey = keyof typeof Metric;
 
 export const Metric = {
   Null: { name: "Null", column: -1, min: 0, max: 100},

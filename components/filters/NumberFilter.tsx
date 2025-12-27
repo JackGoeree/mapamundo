@@ -43,7 +43,7 @@ export default function NumberFilter({
         value={value ?? ''}
         onChange={e => setValue(parseFloat(e.target.value) || null)}
         disabled={!enabled}
-        style={{ marginLeft: 4, width: 60 }} />
-    </label><br /></>
+        style={{ marginLeft: 4, width: 60, textAlign: 'right' }} />
+    </label></>
   );
 }
