@@ -1,4 +1,4 @@
-import NumberFilter from './NumberFilter';
+import NumberFilter from "./NumberFilter";
 
 type HdiFilterProps = {
   hdi: number | null;

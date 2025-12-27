@@ -1,5 +1,4 @@
-import { MapType } from '../Enums'
-
+import { MapType } from "../Enums";
 
 type MapTypeToggleProps = {
   label: string;
@@ -16,17 +15,17 @@ export default function MapTypeToggle({
 }: MapTypeToggleProps) {
   return (
     <>
-    <label>
-              <input
-                type="radio"
-                name="mapType"
-                value={value}
-                checked={activeMapType === value}
-                onChange={() => setActiveMapType(value)}
-              />{' '}
-              {label}
-            </label>
-              <br /></>
+      <label>
+        <input
+          type="radio"
+          name="mapType"
+          value={value}
+          checked={activeMapType === value}
+          onChange={() => setActiveMapType(value)}
+        />{" "}
+        {label}
+      </label>
+      <br />
+    </>
   );
-
 }

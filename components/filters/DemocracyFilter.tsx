@@ -1,11 +1,14 @@
-import NumberFilter from './NumberFilter';
+import NumberFilter from "./NumberFilter";
 
 type DemocracyFilterProps = {
   democracy: number | null;
   setDemocracy: (val: number | null) => void;
 };
 
-export default function DemocracyFilter({ democracy, setDemocracy }: DemocracyFilterProps) {
+export default function DemocracyFilter({
+  democracy,
+  setDemocracy,
+}: DemocracyFilterProps) {
   return (
     <NumberFilter
       label="Democracy Index"

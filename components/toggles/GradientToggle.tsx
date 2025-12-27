@@ -1,5 +1,4 @@
-import { MetricKey } from '../Enums'
-
+import { MetricKey } from "../Enums";
 
 type GradientToggleProps = {
   label: string;
@@ -15,12 +14,12 @@ export default function GradientToggle({
   setActiveMetricKey,
 }: GradientToggleProps) {
   return (
-    <label style={{ display: 'block', marginBottom: 4 }}>
+    <label style={{ display: "block", marginBottom: 4 }}>
       <input
         type="radio"
         checked={activeMetricKey === value}
         onChange={() => setActiveMetricKey(value)}
-      />{' '}
+      />{" "}
       {label}
     </label>
   );

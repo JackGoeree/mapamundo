@@ -1,11 +1,14 @@
-import NumberFilter from './NumberFilter';
+import NumberFilter from "./NumberFilter";
 
 type SmartravellerFilterProps = {
   smartraveller: number | null;
   setSmartraveller: (val: number | null) => void;
 };
 
-export default function SmartravellerFilter({ smartraveller: smartraveller, setSmartraveller: setSmartraveller }: SmartravellerFilterProps) {
+export default function SmartravellerFilter({
+  smartraveller: smartraveller,
+  setSmartraveller: setSmartraveller,
+}: SmartravellerFilterProps) {
   return (
     <NumberFilter
       label="Smartraveller"

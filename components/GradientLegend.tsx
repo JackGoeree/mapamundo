@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface GradientLegendProps {
   min: number;
@@ -11,24 +11,25 @@ const GradientLegend: React.FC<GradientLegendProps> = ({
   min,
   max,
   steps = 5,
-  colorFunc
+  colorFunc,
 }) => {
-  const stepValues = Array.from({ length: steps + 1 }, (_, i) =>
-    min + ((max - min) * i) / steps
+  const stepValues = Array.from(
+    { length: steps + 1 },
+    (_, i) => min + ((max - min) * i) / steps,
   );
 
   return (
-    <div style={{ width: '100%', maxWidth: 300 }}>
+    <div style={{ width: "100%", maxWidth: 300 }}>
       <div
         style={{
           background: `linear-gradient(to right, ${stepValues
             .map(colorFunc)
-            .join(',')})`,
+            .join(",")})`,
           height: 20,
-          marginBottom: 6
+          marginBottom: 6,
         }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
         {stepValues.map((val, i) => (
           <span key={i} style={{ fontSize: 12 }}>
             {val.toFixed(0)}

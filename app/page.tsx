@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import dynamic from 'next/dynamic'
+import dynamic from "next/dynamic";
 
-const MapWithNoSSR = dynamic(() => import('../components/MapWithHighlight'), {
+const MapWithNoSSR = dynamic(() => import("../components/MapWithHighlight"), {
   ssr: false,
-})
+});
 
 export default function Page() {
-  return <MapWithNoSSR />
+  return <MapWithNoSSR />;
 }
