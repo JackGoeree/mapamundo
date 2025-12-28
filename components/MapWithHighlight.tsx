@@ -124,9 +124,7 @@ export default function MapWithHighlight() {
     }
     nationalFallbackKeys.current.clear();
     setGradientColumn(activeMetric.column);
-    const csvFile = WeatherMetrics.includes(activeMetricKey)
-      ? CsvFile.SubdivisionWeather
-      : CsvFile.CountryValues;
+    const csvFile = CsvFile.CountryValues;
     setGradientSource(csvFile);
   }, [activeMetric]);
 

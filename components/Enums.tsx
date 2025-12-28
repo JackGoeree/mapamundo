@@ -14,73 +14,73 @@ export const Metric = {
   Corruption: { name: "Corruption index", column: 8, min: -10, max: 80 },
   JanFeels: {
     name: "January feels-like temperature",
-    column: 26,
+    column: 39,
     min: WeatherMin,
     max: WeatherMax,
   },
   FebFeels: {
     name: "February feels-like temperature",
-    column: 27,
+    column: 40,
     min: WeatherMin,
     max: WeatherMax,
   },
   MarFeels: {
     name: "March feels-like temperature",
-    column: 28,
+    column: 41,
     min: WeatherMin,
     max: WeatherMax,
   },
   AprFeels: {
     name: "April feels-like temperature",
-    column: 29,
+    column: 42,
     min: WeatherMin,
     max: WeatherMax,
   },
   MayFeels: {
     name: "May feels-like temperature",
-    column: 30,
+    column: 43,
     min: WeatherMin,
     max: WeatherMax,
   },
   JunFeels: {
     name: "June feels-like temperature",
-    column: 31,
+    column: 44,
     min: WeatherMin,
     max: WeatherMax,
   },
   JulFeels: {
     name: "July feels-like temperature",
-    column: 32,
+    column: 45,
     min: WeatherMin,
     max: WeatherMax,
   },
   AugFeels: {
     name: "August feels-like temperature",
-    column: 33,
+    column: 46,
     min: WeatherMin,
     max: WeatherMax,
   },
   SepFeels: {
     name: "September feels-like temperature",
-    column: 34,
+    column: 47,
     min: WeatherMin,
     max: WeatherMax,
   },
   OctFeels: {
     name: "October feels-like temperature",
-    column: 35,
+    column: 48,
     min: WeatherMin,
     max: WeatherMax,
   },
   NovFeels: {
     name: "November feels-like temperature",
-    column: 36,
+    column: 49,
     min: WeatherMin,
     max: WeatherMax,
   },
   DecFeels: {
     name: "December feels-like temperature",
-    column: 37,
+    column: 50,
     min: WeatherMin,
     max: WeatherMax,
   },
@@ -127,7 +127,6 @@ export const Metrics: MetricKey[] = [
 
 export const enum CsvFile {
   CountryValues = "/data/countries_values.csv",
-  SubdivisionWeather = "/data/subdivisions_weather.csv",
 }
 
 export const enum MapType {
