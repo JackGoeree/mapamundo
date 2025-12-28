@@ -64,6 +64,8 @@ export default function MapWithHighlight() {
 
   const [gradientColumn, setGradientColumn] = useState<number | null>(null);
   const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
+  const [estimateMissingValues, setEstimateMissingValues] =
+    useState<boolean>(true);
 
   const [filters, setFilters] = useState<((m: EntityMetrics) => boolean)[]>([]);
 
@@ -391,16 +393,22 @@ export default function MapWithHighlight() {
     const filteredValue = filteredCountryValues.get(countryKey);
     const reverse = reversedGradientColumns.has(activeMetric);
     const isWeather = WeatherMetrics.includes(activeMetricKey);
+    const isFallback = nationalFallbackKeys.current.has(countryKey);
 
     if (filteredValue !== undefined) {
-      // Value exists AND passes filters
-      fillColor = getColorForValue(
-        filteredValue,
-        activeMetric,
-        reverse,
-        isWeather,
-      );
-      if (iso3 == "KAZ") console.log("Kaz passes filters");
+      // Value is a fallback
+      if (isFallback && !estimateMissingValues) {
+        fillColor = "#999";
+      } else {
+        // Value exists AND passes filters
+        fillColor = getColorForValue(
+          filteredValue,
+          activeMetric,
+          reverse,
+          isWeather,
+        );
+        if (iso3 == "KAZ") console.log("Kaz passes filters");
+      }
     } else if (hasData) {
       // Has value but filtered out
       fillColor = "#777";
@@ -585,6 +593,16 @@ export default function MapWithHighlight() {
           activeMetricKey={activeMetricKey}
           setActiveMetricKey={setActiveMetricKey}
         />
+        <br />
+        <label>
+          <input
+            type="checkbox"
+            checked={estimateMissingValues}
+            onChange={(e) => setEstimateMissingValues(e.target.checked)}
+          />{" "}
+          Estimate missing values
+        </label>
+        <br />
         <br />
         FILTERS
         <br />
