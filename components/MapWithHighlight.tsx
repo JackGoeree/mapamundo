@@ -378,11 +378,13 @@ export default function MapWithHighlight() {
       };
     }
 
-    const name = feature.properties.name?.trim();
-    let countryKey = name;
+    let iso3 = feature.properties.adm0_a3;
+
+    let countryKey = iso3;
 
     if (activeMapType === MapType.Subdivisions) {
-      const iso3 = feature.properties.adm1_code?.split("-")[0];
+      const name = feature.properties.name?.trim();
+      iso3 = feature.properties.adm1_code?.split("-")[0];
       countryKey = `${iso3}:${name}`;
     }
 
@@ -399,9 +401,13 @@ export default function MapWithHighlight() {
         reverse,
         isWeather,
       );
+      if (iso3 == "KAZ") console.log("Kaz passes filters");
     } else if (hasData) {
       // Has value but filtered out
       fillColor = "#777";
+      if (iso3 == "KAZ") console.log("Kaz filtered out");
+    } else {
+      if (iso3 == "KAZ") console.log("Kaz no data");
     }
 
     return {
@@ -464,8 +470,7 @@ export default function MapWithHighlight() {
     countryData.forEach((row) => ingestCountryRow(store, row));
 
     if (activeMapType === MapType.Subdivisions) {
-      const subdivisionData = await loadCsvData(CsvFile.CountryValues);
-      subdivisionData.forEach((row) => ingestSubdivisionRow(store, row));
+      countryData.forEach((row) => ingestSubdivisionRow(store, row));
     }
 
     applyNationalFallbacks(store);
