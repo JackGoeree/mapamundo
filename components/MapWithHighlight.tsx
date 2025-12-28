@@ -25,6 +25,8 @@ import {
   EntityMetrics,
   ingestSubdivisionFromGeoJson,
 } from "./EntityStore";
+import DemocracyFilter from "./filters/DemocracyFilter";
+import HomicideFilter from "./filters/HomicideFilter";
 
 // -------------------- CACHES --------------------
 const csvCache = new Map<string, any[]>();
@@ -44,12 +46,13 @@ export default function MapWithHighlight() {
   const activeMetric = Metric[activeMetricKey];
 
   const [showPotableWater] = useState(false);
-  const [democracyIndex] = useState<number | null>(null);
+  const [democracyIndex, setDemocracyIndex] = useState<number | null>(null);
   const [costOfLiving, setCostOfLiving] = useState<number | null>(null);
   const [hdi, setHdi] = useState<number | null>(null);
   const [crime, setCrime] = useState<number | null>(null);
   const [corruption, setCorruption] = useState<number | null>(null);
   const [smartraveller, setSmartraveller] = useState<number | null>(null);
+  const [homicideRate, setHomicideRate] = useState<number | null>(null);
 
   const [allCountryValues, setAllCountryValues] = useState<Map<string, number>>(
     new Map(),
@@ -76,6 +79,7 @@ export default function MapWithHighlight() {
   const reversedGradientColumns = new Set<MetricValue>([
     Metric.HDI,
     Metric.Corruption,
+    Metric.DemocracyIndex,
   ]);
 
   const ethnicityColors: Map<string, string> = new Map();
@@ -170,6 +174,11 @@ export default function MapWithHighlight() {
         (m) => m.Smartraveller !== undefined && m.Smartraveller < smartraveller,
       );
     }
+    if (homicideRate !== null) {
+      newFilters.push(
+        (m) => m.HomicideRate !== undefined && m.HomicideRate < homicideRate,
+      );
+    }
 
     setFilters(newFilters);
   }, [
@@ -180,6 +189,7 @@ export default function MapWithHighlight() {
     crime,
     corruption,
     smartraveller,
+    homicideRate,
   ]);
 
   useEffect(() => {
@@ -316,6 +326,13 @@ export default function MapWithHighlight() {
   ) => {
     const min = metric.min;
     const max = metric.max;
+
+    console.log({
+      value,
+      min: metric.min,
+      max: metric.max,
+    });
+
     let ratio = (value - min) / (max - min);
     if (reverse) ratio = 1 - ratio;
 
@@ -593,6 +610,18 @@ export default function MapWithHighlight() {
           activeMetricKey={activeMetricKey}
           setActiveMetricKey={setActiveMetricKey}
         />
+        <GradientToggle
+          label="Democracy Index"
+          value="DemocracyIndex"
+          activeMetricKey={activeMetricKey}
+          setActiveMetricKey={setActiveMetricKey}
+        />
+        <GradientToggle
+          label="Homicide Rate"
+          value="HomicideRate"
+          activeMetricKey={activeMetricKey}
+          setActiveMetricKey={setActiveMetricKey}
+        />
         <br />
         <label>
           <input
@@ -619,6 +648,14 @@ export default function MapWithHighlight() {
         <SmartravellerFilter
           smartraveller={smartraveller}
           setSmartraveller={setSmartraveller}
+        />
+        <DemocracyFilter
+          democracy={democracyIndex}
+          setDemocracy={setDemocracyIndex}
+        />
+        <HomicideFilter
+          homicideRate={homicideRate}
+          setHomicideRate={setHomicideRate}
         />
       </div>
 
