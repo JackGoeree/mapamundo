@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
-import type { GeoJSON as GeoJSONType } from "geojson";
+import type { FeatureCollection, GeoJSON as GeoJSONType } from "geojson";
 import type { PathOptions } from "leaflet";
 import Papa from "papaparse";
 
@@ -23,6 +23,7 @@ import {
   ingestSubdivisionRow,
   applyNationalFallbacks,
   EntityMetrics,
+  ingestSubdivisionFromGeoJson,
 } from "./EntityStore";
 
 // -------------------- CACHES --------------------
@@ -467,9 +468,18 @@ export default function MapWithHighlight() {
   ) {
     const store: EntityStore = new Map();
 
+    // load countries
     const countryData = await loadCsvData(CsvFile.CountryValues);
     countryData.forEach((row) => ingestCountryRow(store, row));
 
+    // load subdivisions in geojson
+    if (activeMapType === MapType.Subdivisions && geoData) {
+      (geoData as FeatureCollection).features.forEach((feature: any) => {
+        ingestSubdivisionFromGeoJson(store, feature);
+      });
+    }
+
+    // load subdivisions in CSV - overwrite geojson subdivisions if match
     if (activeMapType === MapType.Subdivisions) {
       countryData.forEach((row) => ingestSubdivisionRow(store, row));
     }

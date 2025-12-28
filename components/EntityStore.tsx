@@ -47,6 +47,16 @@ export function ingestCountryRow(store: EntityStore, row: any[]) {
   }
 }
 
+export function ingestSubdivisionFromGeoJson(store: EntityStore, feature: any) {
+  const iso3 = feature.properties.adm1_code?.split("-")[0];
+  const name = feature.properties.name?.trim();
+
+  if (!iso3 || !name) return;
+
+  const id = `${iso3}:${name}`;
+  getEntity(store, id); // creates empty entity if missing
+}
+
 export function ingestSubdivisionRow(store: EntityStore, row: any[]) {
   const name = row[0];
   const code = row[1]; // e.g. "DE.1"
