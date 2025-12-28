@@ -426,12 +426,13 @@ export default function MapWithHighlight() {
       const props = feature.properties;
       const name = props.name?.trim();
       const country = props.admin;
-      let countryKey = name;
       let popupContent = "";
+      let iso3 = feature.properties.adm0_a3;
+      let countryKey = iso3;
 
       if (activeMapType === MapType.Subdivisions) {
-        const country_iso3 = feature.properties.adm1_code?.split("-")[0];
-        countryKey = `${country_iso3}:${name}`;
+        iso3 = feature.properties.adm1_code?.split("-")[0];
+        countryKey = `${iso3}:${name}`;
       }
 
       if (activeMapType === MapType.Ethnicities) {
