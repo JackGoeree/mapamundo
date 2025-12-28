@@ -17,6 +17,14 @@ import SmartravellerFilter from "./filters/SmartravellerFilter";
 import GradientToggle from "./toggles/GradientToggle";
 import MapTypeToggle from "./toggles/MapTypeToggle";
 
+import {
+  EntityStore,
+  ingestCountryRow,
+  ingestSubdivisionRow,
+  applyNationalFallbacks,
+  EntityMetrics,
+} from "./EntityStore";
+
 // -------------------- CACHES --------------------
 const csvCache = new Map<string, any[]>();
 const geoJsonCache = new Map<string, any>();
@@ -56,7 +64,7 @@ export default function MapWithHighlight() {
   const [gradientColumn, setGradientColumn] = useState<number | null>(null);
   const [gradientSource, setGradientSource] = useState<CsvFile | null>(null);
 
-  const [filters, setFilters] = useState<((row: any[]) => boolean)[]>([]);
+  const [filters, setFilters] = useState<((m: EntityMetrics) => boolean)[]>([]);
 
   // -------------------- REFS --------------------
   const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
@@ -79,13 +87,7 @@ export default function MapWithHighlight() {
         const geoJson = await getGeoJson(activeMapType);
         setGeoData(geoJson);
 
-        applyGradientWithFilters(
-          activeMetric.column,
-          WeatherMetrics.includes(activeMetricKey!)
-            ? CsvFile.SubdivisionWeather
-            : CsvFile.CountryValues,
-          filters,
-        );
+        applyGradientWithFilters(activeMetric.column, filters);
       } catch (err) {
         console.error(err);
         setGeoData(null);
@@ -96,7 +98,7 @@ export default function MapWithHighlight() {
 
   useEffect(() => {
     if (gradientColumn != null && gradientSource != null) {
-      applyGradientWithFilters(gradientColumn, gradientSource, filters);
+      applyGradientWithFilters(gradientColumn, filters);
     }
   }, [gradientColumn, gradientSource, filters]);
 
@@ -133,41 +135,42 @@ export default function MapWithHighlight() {
   }, [monthIndex]);
 
   useEffect(() => {
-    const filters: ((row: any[]) => boolean)[] = [];
+    const newFilters: ((m: EntityMetrics) => boolean)[] = [];
 
     if (showPotableWater) {
-      filters.push(
-        (row) => row[Metric.PotableWater.column]?.toLowerCase() === "true",
+      newFilters.push(
+        (m) => m.PotableWater !== undefined && m.PotableWater >= 100,
       );
     }
     if (democracyIndex !== null) {
-      filters.push(
-        (row) => parseFloat(row[Metric.DemocracyIndex.column]) > democracyIndex,
+      newFilters.push(
+        (m) =>
+          m.DemocracyIndex !== undefined && m.DemocracyIndex > democracyIndex,
       );
     }
     if (costOfLiving !== null) {
-      filters.push(
-        (row) => parseFloat(row[Metric.CostOfLiving.column]) < costOfLiving,
+      newFilters.push(
+        (m) => m.CostOfLiving !== undefined && m.CostOfLiving < costOfLiving,
       );
     }
     if (hdi !== null) {
-      filters.push((row) => parseFloat(row[Metric.HDI.column]) > hdi);
+      newFilters.push((m) => m.HDI !== undefined && m.HDI > hdi);
     }
     if (crime !== null) {
-      filters.push((row) => parseFloat(row[Metric.Crime.column]) < crime);
+      newFilters.push((m) => m.Crime !== undefined && m.Crime < crime);
     }
     if (corruption !== null) {
-      filters.push(
-        (row) => parseFloat(row[Metric.Corruption.column]) > corruption,
+      newFilters.push(
+        (m) => m.Corruption !== undefined && m.Corruption > corruption,
       );
     }
     if (smartraveller !== null) {
-      filters.push(
-        (row) => parseFloat(row[Metric.Smartraveller.column]) < smartraveller,
+      newFilters.push(
+        (m) => m.Smartraveller !== undefined && m.Smartraveller < smartraveller,
       );
     }
 
-    setFilters(filters);
+    setFilters(newFilters);
   }, [
     showPotableWater,
     democracyIndex,
@@ -219,7 +222,7 @@ export default function MapWithHighlight() {
 
     return results.data;
   }
-
+  /*
   function handleNationalRow(
     row: any[],
     iso3: string,
@@ -291,7 +294,7 @@ export default function MapWithHighlight() {
     filters: ((row: any[]) => boolean)[],
   ): boolean {
     return filters.every((f) => f(row));
-  }
+  }*/
 
   // -------------------- STYLE FUNCTIONS --------------
   function getEthnicityColor(name: string) {
@@ -452,78 +455,43 @@ export default function MapWithHighlight() {
     };
 
   async function applyGradientWithFilters(
-    column: number,
-    source: CsvFile,
-    filters: ((row: any[]) => boolean)[],
+    _column: number,
+    filters: ((metrics: any) => boolean)[],
   ) {
-    try {
-      const data = await loadCsvData(source);
+    const store: EntityStore = new Map();
 
-      const nationalValues = new Map<string, number>();
-      const allMap = new Map<string, number>();
-      const filteredMap = new Map<string, number>();
+    const countryData = await loadCsvData(CsvFile.CountryValues);
+    countryData.forEach((row) => ingestCountryRow(store, row));
 
-      for (const row of data) {
-        if (!row?.length) continue;
+    if (activeMapType === MapType.Subdivisions) {
+      const subdivisionData = await loadCsvData(CsvFile.CountryValues);
+      subdivisionData.forEach((row) => ingestSubdivisionRow(store, row));
+    }
 
-        const countryName = String(row[0]);
-        const secondCol = String(row[1] || "").trim();
-        const rawValue = parseFloat(row[column]);
-        const value = isNaN(rawValue) ? null : rawValue;
+    applyNationalFallbacks(store);
 
-        // National (ISO3)
-        if (/^[A-Z]{3}$/.test(secondCol) && value !== null) {
-          handleNationalRow(
-            row,
-            secondCol,
-            value,
-            filters,
-            nationalValues,
-            allMap,
-            filteredMap,
-          );
-          continue;
-        }
+    const all = new Map<string, number>();
+    const filtered = new Map<string, number>();
+    const fallbackKeys = new Set<string>();
 
-        // Subdivision
-        if (activeMapType === MapType.Subdivisions && secondCol.includes(".")) {
-          const iso3 = secondCol.split(".")[0];
-          const countryKey = `${iso3}:${countryName}`;
+    for (const [id, entity] of store) {
+      const value = entity.metrics[activeMetricKey];
+      if (value === undefined) continue;
 
-          handleSubdivisionRow(
-            row,
-            countryKey,
-            iso3,
-            value,
-            column,
-            filters,
-            nationalValues,
-            allMap,
-            filteredMap,
-          );
-          continue;
-        }
+      all.set(id, value);
 
-        // Default country row
-        if (value !== null) {
-          handleDefaultRow(
-            row,
-            countryName,
-            value,
-            filters,
-            allMap,
-            filteredMap,
-          );
-        }
+      if (filters.every((f) => f(entity.metrics))) {
+        filtered.set(id, value);
       }
 
-      setAllCountryValues(allMap);
-      setFilteredCountryValues(filteredMap);
-    } catch (err) {
-      console.error(err);
-      setAllCountryValues(new Map());
-      setFilteredCountryValues(new Map());
+      if (entity.fallback.has(activeMetricKey)) {
+        fallbackKeys.add(id);
+      }
     }
+
+    setAllCountryValues(all);
+    setFilteredCountryValues(filtered);
+    nationalFallbackKeys.current = fallbackKeys;
   }
 
   // -------------------- RENDER --------------------

@@ -101,6 +101,30 @@ export const WeatherMetrics: MetricKey[] = [
   "DecFeels",
 ];
 
+export const Metrics: MetricKey[] = [
+  "Null",
+  "PotableWater",
+  "DemocracyIndex",
+  "Smartraveller",
+  "CostOfLiving",
+  "HDI",
+  "Crime",
+  "Corruption",
+  "Corruption",
+  "JanFeels",
+  "FebFeels",
+  "MarFeels",
+  "AprFeels",
+  "MayFeels",
+  "JunFeels",
+  "JulFeels",
+  "AugFeels",
+  "SepFeels",
+  "OctFeels",
+  "NovFeels",
+  "DecFeels",
+];
+
 export const enum CsvFile {
   CountryValues = "/data/countries_values.csv",
   SubdivisionWeather = "/data/subdivisions_weather.csv",
