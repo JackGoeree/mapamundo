@@ -6,7 +6,13 @@ import type { PathOptions } from "leaflet";
 import Papa from "papaparse";
 
 import MonthSlider from "./MonthSlider";
-import { CsvFile, MapType, Metric, WeatherMetrics } from "./Enums";
+import {
+  CsvFile,
+  MapType,
+  Metric,
+  TravelAdvice,
+  WeatherMetrics,
+} from "./Enums";
 
 import CrimeFilter from "./filters/CrimeFilter";
 import HdiFilter from "./filters/HdiFilter";
@@ -463,7 +469,13 @@ export default function MapWithHighlight() {
         const ethnicity = props.G1SHORTNAM?.trim() ?? "Unknown";
         popupContent = `<strong>${ethnicity}</strong>`;
       } else {
-        const value = values.get(countryKey);
+        const numericValue = values.get(countryKey);
+        let displayValue = numericValue?.toString();
+
+        if (activeMetric == Metric.Smartraveller && numericValue != undefined) {
+          displayValue = TravelAdvice[numericValue - 1];
+        }
+
         const popupTitle =
           activeMapType === MapType.Countries
             ? `<strong>${name}<br />`
@@ -471,8 +483,8 @@ export default function MapWithHighlight() {
 
         popupContent = `${popupTitle}
           ${
-            value !== undefined
-              ? `${activeMetric.name}: ${value}${
+            numericValue !== undefined
+              ? `${activeMetric.name}: ${displayValue}${
                   nationalFallbackKeys.current.has(countryKey)
                     ? "<br /> (Estimate from national data)"
                     : ""
