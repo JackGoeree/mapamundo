@@ -6,7 +6,7 @@ export type MetricKey = keyof typeof Metric;
 export const Metric = {
   Null: { name: "Null", column: -1, min: 0, max: 100 },
   PotableWater: { name: "Potable water", column: 2, min: 0, max: 100 },
-  DemocracyIndex: { name: "Democracy index", column: 3, min: 0, max: 10 },
+  DemocracyIndex: { name: "Democracy index", column: 3, min: 0, max: 8 },
   Smartraveller: { name: "Smartraveller advice", column: 4, min: 1, max: 5 },
   CostOfLiving: { name: "Cost of living", column: 52, min: 500, max: 5000 },
   HDI: { name: "Human Development Index", column: 6, min: 0.2, max: 1.0 },
